@@ -127,8 +127,12 @@ int container_entry(void *arg) {
     // 6. Mutación final: Ejecutar el proceso (FRR o bash)
     // Al usar execve, este proceso reemplaza la imagen de memoria,
     // pero mantiene el PID 1 dentro del namespace.
-    char *exec_args[] = {"/usr/lib/frr/frrinit.sh", "start", NULL}; // O tu script de entrada
-    char *exec_env[]  = {"PATH=/bin:/usr/bin:/sbin:/usr/sbin", "TERM=xterm", NULL};
+
+    // char *exec_args[] = {"/usr/lib/frr/frrinit.sh", "start", NULL}; // O tu script de entrada
+    // char *exec_env[]  = {"PATH=/bin:/usr/bin:/sbin:/usr/sbin", "TERM=xterm", NULL};
+
+    char *exec_args[] = {"/bin/sleep", "3600", NULL};
+    char *exec_env[]  = {"PATH=/bin:/usr/bin", NULL};
 
     if (execve(exec_args[0], exec_args, exec_env) == -1) {
         perror("Fallo en execve");
@@ -141,18 +145,18 @@ int container_entry(void *arg) {
 // -----------------------------------------------------------------
 // ESTA ES LA FUNCIÓN QUE LLAMARÁS DESDE PYTHON (VÍA CYTHON)
 // -----------------------------------------------------------------
-int start_node(char *node_name, char *merged_dir, char *apparmor_profile) {
-    // Reservar memoria para la pila del proceso hijo
+int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *apparmor_profile, char *netns_name) {
     char *stack = malloc(STACK_SIZE);
-    if (!stack) {
-        perror("Fallo al reservar stack");
-        return -1;
-    }
+    if (!stack) return -1;
 
     struct node_config config = {
         .node_name = node_name,
+        .lower_dir = lower_dir,
+        .upper_dir = upper_dir,
+        .work_dir = work_dir,
         .merged_dir = merged_dir,
-        .apparmor_profile = apparmor_profile
+        .apparmor_profile = apparmor_profile,
+        .netns_name = netns_name
     };
 
     // Usamos clone() para crear el proceso ya aislado

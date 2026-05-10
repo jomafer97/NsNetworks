@@ -1,36 +1,28 @@
 import os, sys, subprocess
 import mininet_ng_core
-from pyroute2 import NetNS, IPRoute
-
-PROJECT_NAME = "mininet_ng"
+from network_namespace import NetworkNamespace, Link
 
 
 class Node:
+    BASE_PATH = "/var/lib/net_project"
+    CGROUP_PATH = "/sys/fs/cgroup/net_project"
+
     def __init__(self, name, **kwargs):
-        # Name
         self.name = name
+        self.netns = NetworkNamespace(f"netns_{name}")
 
-        # Network Namespace
-        self.netns_name = f"netns_{name}"
-        self.netns = None
-
-        # Mount Namespace (OverlayFS)
-        base_path = f"/var/lib/{PROJECT_NAME}"
         self.overlay_dirs = {
-            "lower": kwargs.get("lower_dir", f"{base_path}/alpine_base"),
-            "upper": f"{base_path}/nodes/{name}/upper",
-            "work": f"{base_path}/nodes/{name}/work",
-            "merged": f"{base_path}/nodes/{name}/merged",
+            "lower": kwargs.get("lower_dir", f"{Node.BASE_PATH}/alpine_base"),
+            "upper": f"{Node.BASE_PATH}/nodes/{name}/upper",
+            "work": f"{Node.BASE_PATH}/nodes/{name}/work",
+            "merged": f"{Node.BASE_PATH}/nodes/{name}/merged",
         }
 
-        # AppArmor Profile
         self.apparmor_profile = kwargs.get("apparmor", "apparmor-default")
 
-        # Cgroups v2
-        self.cgroup_path = f"/sys/fs/cgroup/{PROJECT_NAME}/{name}"
+        self.cgroup_path = f"{Node.CGROUP_PATH}/{name}"
         self.cgroup_limits = kwargs.get("limits", {})
 
-        # Status Control
         self.pid = None
 
     def start(self):
@@ -45,7 +37,7 @@ class Node:
             upper_dir=self.overlay_dirs["upper"],
             work_dir=self.overlay_dirs["work"],
             apparmor_profile=self.apparmor_profile,
-            netns_name=self.netns_name,
+            netns_name=self.netns.name,
         )
 
         if self.pid == -1:
