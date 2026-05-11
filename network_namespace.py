@@ -26,13 +26,11 @@ class NetworkNamespace:
 
     def add_interface(self, iface: Interface):
         """
-        Registra una interfaz física/virtual (ej: veth) en este namespace.
-        Nota: Se asume que la interfaz ya ha sido movida a este namespace en el kernel.
+        Registra una interfaz física/virtual en este namespace.
+        Si la interfaz vive en otro namespace, la arrastra hacia el actual.
         """
         if iface.net_ns != self.name:
-            raise ValueError(
-                f"Error al añadir la interfaz {iface.name} al netns {self.name}"
-            )
+            iface.attach_netns(self.name)
 
         self.ifaces[iface.name] = iface
 

@@ -1,11 +1,13 @@
 from pyroute2 import IPRoute
-from interface import Interface
+from network_namespace import Interface
+from node import Node
 
 
 class Link:
     def __init__(self, iface_1: Interface, iface_2: Interface):
         """Crea el par veth físico en el host."""
-        self.ifaces = (iface_1, iface_2)
+        self.ifaces: tuple[Interface, Interface] = (iface_1, iface_2)
+
         try:
             with IPRoute() as ipr:
                 ipr.link(
@@ -18,14 +20,17 @@ class Link:
             print(f"Error creando Link {iface_1.name}-{iface_2.name}: {e}")
             raise
 
-    def attach(self, netns_1: str | None = None, netns_2: str | None = None):
-        """Mueve los interfaces a sus respectivos namespaces (Capa 1/2)."""
+    def attach(
+        self,
+        node_1: Node | None = None,
+        node_2: Node | None = None,
+    ):
+        """Conecta dos nodos con el enlace"""
         try:
-            with IPRoute() as ipr:
-                if netns_1:
-                    self.ifaces[0].attach_netns(net_ns=netns_1, ipr=ipr)
-                if netns_2:
-                    self.ifaces[1].attach_netns(net_ns=netns_2, ipr=ipr)
+            if node_1:
+                node_1.add_interface(self.ifaces[0])
+            if node_2:
+                node_2.add_interface(self.ifaces[1])
         except Exception as e:
             print(f"Error distribuyendo Link: {e}")
             raise
