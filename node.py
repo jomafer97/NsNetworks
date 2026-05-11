@@ -1,6 +1,6 @@
 import os, sys, subprocess
 import mininet_ng_core
-from network_namespace import NetworkNamespace, Link
+from network_namespace import NetworkNamespace
 
 
 class Node:
@@ -32,10 +32,10 @@ class Node:
         """
         self.pid = mininet_ng_core.create_container(
             node_name=self.name,
-            merged_dir=self.overlay_dirs["merged"],
             lower_dir=self.overlay_dirs["lower"],
             upper_dir=self.overlay_dirs["upper"],
             work_dir=self.overlay_dirs["work"],
+            merged_dir=self.overlay_dirs["merged"],
             apparmor_profile=self.apparmor_profile,
             netns_name=self.netns.name,
         )

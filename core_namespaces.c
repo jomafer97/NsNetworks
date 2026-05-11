@@ -33,37 +33,41 @@ int container_entry(void *arg) {
 
     printf("[C-Core] Inicializando contenedor %s (PID interno: %d)\n", config->node_name, getpid());
 
-    // 0. Unirse al Network Namespace creado por Python
     char netns_path[256];
     snprintf(netns_path, sizeof(netns_path), "/var/run/netns/%s", config->netns_name);
 
-    // Abrimos el descriptor de archivo del namespace de red
+    /*
+    Obtención del file descriptor del netns como readonly, que se cerrará en exec
+    */
     int netns_fd = open(netns_path, O_RDONLY | O_CLOEXEC);
     if (netns_fd < 0) {
         perror("Error abriendo el netns");
         return -1;
     }
 
-    // setns() mete a este proceso en el namespace indicado (CLONE_NEWNET)
+    /*
+    Se establece el nuevo netns a partir del descriptor
+    */
     if (setns(netns_fd, CLONE_NEWNET) != 0) {
         perror("Fallo en setns para red");
         close(netns_fd);
         return -1;
     }
 
-    // Ya estamos dentro de la red aislada, podemos cerrar el descriptor
     close(netns_fd);
 
-    // 1. Evitar la propagación de montajes hacia el host (Vital por seguridad)
-    // Equivale a tu mount --make-rprivate / del bash
+    /*
+    Para evitar la propagación de montajes hacia el host. Esto hace que todo montaje
+    que se realice en este mnt namespace no afecte al exterior
+    */
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
         perror("Fallo en mount MS_PRIVATE");
         return -1;
     }
 
-    // 2. Montar el OverlayFS
-    // (Asumimos que Python ya ha creado los directorios upper/lower/work)
-    // Aquí harías el mount() con el fstype "overlay".
+    /*
+    Establecimiento de los parámetros del overlayfs
+    */
     char options[4096];
 
     int ret = snprintf(options, sizeof(options),
@@ -75,41 +79,53 @@ int container_entry(void *arg) {
         return -1;
     }
 
+    /*
+    Montaje del overlayfs
+    */
     if (mount("overlay", config->merged_dir, "overlay", 0, options) != 0) {
         perror("Fallo al montar OverlayFS");
         return -1;
     }
 
-    // 3. Preparar el pivot_root
-    // pivot_root requiere que el nuevo root sea un punto de montaje.
-    // Hacemos un bind mount sobre sí mismo para satisfacer al kernel.
+    /*
+    Antes de realizar un pivot root, la raíz se convierte en un nuevo punto de montaje
+    */
     if (mount(config->merged_dir, config->merged_dir, "bind", MS_BIND | MS_REC, NULL) != 0) {
         perror("Fallo en bind mount del merged_dir");
         return -1;
     }
 
-    // Cambiamos al nuevo directorio
     chdir(config->merged_dir);
 
-    // Creamos la carpeta temporal para el viejo root
+    /*
+    Creación de carpeta temporal para el antiguo root
+    */
     mkdir("oldroot", 0777);
 
-    // ¡La magia del aislamiento!
+    /*
+    Realización de pivot root
+    */
     if (syscall(SYS_pivot_root, ".", "oldroot") != 0) {
         perror("Fallo en pivot_root");
         return -1;
     }
 
-    // Cambiamos la raíz absoluta
+    /*
+    Entrada a la nueva raíz
+    */
     chdir("/");
 
-    // 4. Montar el nuevo /proc aislando el árbol de procesos
+    /*
+    Montar el fs de tipo "proc" en /proc
+    */
     if (mount("proc", "/proc", "proc", MS_NOEXEC | MS_NOSUID | MS_NODEV, NULL) != 0) {
         perror("Fallo al montar /proc");
         return -1;
     }
 
-    // Desmontar el oldroot para no dejar rastros del host y borrar la carpeta
+    /*
+    Desmontaje y eliminación de la antigua raíz
+    */
     umount2("/oldroot", MNT_DETACH);
     rmdir("/oldroot");
 
@@ -159,11 +175,14 @@ int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir
         .netns_name = netns_name
     };
 
-    // Usamos clone() para crear el proceso ya aislado
-    // CLONE_NEWNET se gestiona aparte (suele ser más fácil con setns)
     int clone_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC | SIGCHLD;
 
-    // clone() requiere un puntero al FINAL de la pila (stack crece hacia abajo en x86)
+    /* Los parámetros son:
+        1. Función que ejecutará el nuevo proceso al nacer
+        2. Pila de memoria invertida, se le pasa el inicio (stack apunta al inicio) más el tamaño del stack
+        3. Flags de clonado
+        4. Argumentos de la función
+    */
     pid_t child_pid = clone(container_entry, stack + STACK_SIZE, clone_flags, &config);
 
     if (child_pid == -1) {
