@@ -1,11 +1,43 @@
-import os, shutil, signal
+import os, shutil, signal, abc, subprocess
 import mininet_ng_core
-from network_namespace import NetworkNamespace, Interface
+from network_namespace import NetworkNamespace
+from iface import Iface
 
 
-class Node:
+class Node(metaclass=abc.ABCMeta):
+    """
+    Clase Abstracta Base.
+    Define lo que CUALQUIER cosa conectada a la red debe tener.
+    """
+
+    def __init__(self, name):
+        self.name = name
+        self.netns = NetworkNamespace(f"netns_{name}")
+
+    @abc.abstractmethod
+    def start(self):
+        """Arranque del nodo"""
+        pass
+
+    @abc.abstractmethod
+    def stop(self):
+        """Detención del nodo"""
+        pass
+
+    def attach(self, iface: Iface):
+        """
+        Añade una interfaz al netns del nodo
+        """
+        self.netns.add_Iface(iface)
+
+
+class IsolatedNode(Node):
+    """
+    Nodos aislados mediante namespaces, OverlayFS, Cgroups y Apparmor
+    """
+
     BASE_PATH = "/var/lib/net_project"
-    CGROUP_PATH = "/sys/fs/cgroup/net_project"
+    CGROUP_ROOT = "/sys/fs/cgroup/net_project"
 
     def __init__(
         self,
@@ -14,37 +46,54 @@ class Node:
         apparmor_profile: str = "apparmor-default",
         limits: dict | None = None,
     ):
-        self.name = name
-        self.netns = NetworkNamespace(f"netns_{name}")
+        super().__init__(name)
+        self.apparmor_profile = apparmor_profile
+        self.cgroup_path = f"{IsolatedNode.CGROUP_ROOT}/{name}"
+        self.cgroup_limits = limits or {}
+        self.pid = None
 
-        self.overlay_dirs = {
+        self.overlay = {
             "lower": lower_dir,
-            "upper": f"{Node.BASE_PATH}/nodes/{name}/upper",
-            "work": f"{Node.BASE_PATH}/nodes/{name}/work",
-            "merged": f"{Node.BASE_PATH}/nodes/{name}/merged",
+            "upper": f"{IsolatedNode.BASE_PATH}/nodes/{name}/upper",
+            "work": f"{IsolatedNode.BASE_PATH}/nodes/{name}/work",
+            "merged": f"{IsolatedNode.BASE_PATH}/nodes/{name}/merged",
         }
 
-        self.apparmor_profile = apparmor_profile
-        self.cgroup_path = f"{Node.CGROUP_PATH}/{name}"
-        self.cgroup_limits = limits or {}
+    def _setup_fs(self):
+        """Prepara las carpetas para el OverlayFS"""
+        os.makedirs(self.overlay["upper"], exist_ok=True)
+        os.makedirs(self.overlay["work"], exist_ok=True)
+        os.makedirs(self.overlay["merged"], exist_ok=True)
 
-        self.pid = None
+    def _apply_cgroups(self):
+        """Aplica la jerarquía de Cgroups v2 y los límites"""
+        os.makedirs(self.cgroup_path, exist_ok=True)
+
+        with open(f"{IsolatedNode.CGROUP_ROOT}/cgroup.subtree_control", "w") as f:
+            f.write("+memory +pids +cpu")
+
+        with open(f"{self.cgroup_path}/cgroup.procs", "w") as f:
+            f.write(str(self.pid))
+
+        for key, value in self.cgroup_limits.items():
+            path = f"{self.cgroup_path}/{key}"
+            if os.path.exists(path):
+                with open(path, "w") as f:
+                    f.write(str(value))
 
     def start(self):
         """Inicia el entorno de la siguiente forma:
         - Crea los directorios de OverlayFS y Cgroups
         - Invoca al motor de C para que haga el unshare y pivot_root
         """
-        os.makedirs(self.overlay_dirs["upper"], exist_ok=True)
-        os.makedirs(self.overlay_dirs["work"], exist_ok=True)
-        os.makedirs(self.overlay_dirs["merged"], exist_ok=True)
+        self._setup_fs()
 
         self.pid = mininet_ng_core.create_container(
             node_name=self.name,
-            lower_dir=self.overlay_dirs["lower"],
-            upper_dir=self.overlay_dirs["upper"],
-            work_dir=self.overlay_dirs["work"],
-            merged_dir=self.overlay_dirs["merged"],
+            lower_dir=self.overlay["lower"],
+            upper_dir=self.overlay["upper"],
+            work_dir=self.overlay["work"],
+            merged_dir=self.overlay["merged"],
             apparmor_profile=self.apparmor_profile,
             netns_name=self.netns.name,
         )
@@ -52,13 +101,15 @@ class Node:
         if self.pid == -1:
             raise RuntimeError(f"Fallo crítico al levantar el nodo {self.name} en C")
 
-        print(f"[*] Nodo {self.name} levantado de forma aislada. PID: {self.pid}")
+        self._apply_cgroups()
 
-    def add_interface(self, iface: Interface):
-        """
-        Añade una interfaz al netns del nodo
-        """
-        self.netns.add_interface(iface)
+    def exec_in_node(self, command):
+        """Ejecuta un comando dentro del namespace de red del nodo"""
+        if not self.pid:
+            raise RuntimeError(f"El nodo {self.name} no está en ejecución.")
+
+        prefix = ["nsenter", "-t", str(self.pid), "-nmp"]
+        return subprocess.run(prefix + command.split(), capture_output=True, text=True)
 
     def stop(self):
         """Elimina el nodo:
@@ -77,9 +128,13 @@ class Node:
 
         self.netns.cleanup()
 
-        shutil.rmtree(self.overlay_dirs["upper"], ignore_errors=True)
-        shutil.rmtree(self.overlay_dirs["work"], ignore_errors=True)
-        shutil.rmtree(self.overlay_dirs["merged"], ignore_errors=True)
+        subprocess.run(
+            ["umount", "-l", self.overlay["merged"]], stderr=subprocess.DEVNULL
+        )
+
+        node_dir = os.path.dirname(self.overlay["upper"])
+        if os.path.exists(node_dir):
+            shutil.rmtree(node_dir, ignore_errors=True)
 
         try:
             if os.path.exists(self.cgroup_path):

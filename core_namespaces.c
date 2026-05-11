@@ -10,26 +10,30 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 
 // El tamaño de la pila que necesita clone() para el proceso hijo
 #define STACK_SIZE (1024 * 1024)
 
 // Estructura para pasarle los parámetros desde Python al hijo en C
 struct node_config {
-    char *node_name;
-    char *lower_dir; // Rutas concatenadas con :
-    char *upper_dir;
-    char *work_dir;
-    char *merged_dir;
-    char *apparmor_profile;
-    char *netns_name;
+    char node_name[64];
+    char lower_dir[512];
+    char upper_dir[512];
+    char work_dir[512];
+    char merged_dir[512];
+    char apparmor_profile[128];
+    char netns_name[128];
 };
 
 // -----------------------------------------------------------------
 // ESTA ES LA FUNCIÓN QUE SE EJECUTA DENTRO DEL CONTENEDOR (PID 1)
 // -----------------------------------------------------------------
 int container_entry(void *arg) {
-    struct node_config *config = arg;
+    struct node_config *config = (struct node_config *)arg;
+
+    printf("[C-Core HIJO] Memoria del Heap -> Node: %s | Netns: %s\n", config->node_name, config->netns_name);
+    fflush(stdout);
 
     printf("[C-Core] Inicializando contenedor %s (PID interno: %d)\n", config->node_name, getpid());
 
@@ -124,6 +128,34 @@ int container_entry(void *arg) {
     }
 
     /*
+    Montaje de /sys como read only
+    */
+    if (mount("sysfs", "/sys", "sysfs", MS_RDONLY | MS_NOEXEC | MS_NOSUID | MS_NODEV, NULL) != 0) {
+        perror("Fallo al montar /sys");
+    }
+
+    /*
+    Montaje de /dev limpio
+    */
+    if (mount("tmpfs", "/dev", "tmpfs", MS_NOSUID | MS_STRICTATIME, "mode=755") != 0) {
+        perror("Fallo al montar /dev tmpfs");
+    }
+
+    mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3));
+    mknod("/dev/zero", S_IFCHR | 0666, makedev(1, 5));
+    mknod("/dev/random", S_IFCHR | 0666, makedev(1, 8));
+    mknod("/dev/urandom", S_IFCHR | 0666, makedev(1, 9));
+
+    /* Esto habilitaría terminales
+
+    mkdir("/dev/pts", 0755);
+    if (mount("devpts", "/dev/pts", "devpts", 0, "newinstance,ptmxmode=0666") == 0) {
+        symlink("/dev/pts/ptmx", "/dev/ptmx");
+    }
+
+    */
+
+    /*
     Desmontaje y eliminación de la antigua raíz
     */
     umount2("/oldroot", MNT_DETACH);
@@ -162,28 +194,39 @@ int container_entry(void *arg) {
 // ESTA ES LA FUNCIÓN QUE LLAMARÁS DESDE PYTHON (VÍA CYTHON)
 // -----------------------------------------------------------------
 int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *apparmor_profile, char *netns_name) {
+    // Sonda de seguridad
+    printf("[C-Core PADRE] Inyectando en Pila -> Node: %s | Netns: %s\n", node_name, netns_name);
+    fflush(stdout);
+
     char *stack = malloc(STACK_SIZE);
     if (!stack) return -1;
 
-    struct node_config config = {
-        .node_name = node_name,
-        .lower_dir = lower_dir,
-        .upper_dir = upper_dir,
-        .work_dir = work_dir,
-        .merged_dir = merged_dir,
-        .apparmor_profile = apparmor_profile,
-        .netns_name = netns_name
-    };
+    // 1. Calculamos el tope de la pila (la pila crece hacia abajo)
+    uintptr_t stack_top = (uintptr_t)(stack + STACK_SIZE);
+
+    // 2. Restamos el tamaño exacto de nuestra estructura para hacerle hueco
+    stack_top -= sizeof(struct node_config);
+
+    // 3. Alineamos la memoria a 16 bytes (Obligatorio en x86_64 para evitar SegFaults)
+    stack_top &= ~0xF;
+
+    // 4. Instanciamos la estructura DENTRO de la memoria de la pila del hijo
+    struct node_config *config = (struct node_config *)stack_top;
+
+    // 5. Copiamos los bytes en crudo
+    memset(config, 0, sizeof(struct node_config));
+    strncpy(config->node_name, node_name, sizeof(config->node_name) - 1);
+    strncpy(config->lower_dir, lower_dir, sizeof(config->lower_dir) - 1);
+    strncpy(config->upper_dir, upper_dir, sizeof(config->upper_dir) - 1);
+    strncpy(config->work_dir, work_dir, sizeof(config->work_dir) - 1);
+    strncpy(config->merged_dir, merged_dir, sizeof(config->merged_dir) - 1);
+    strncpy(config->apparmor_profile, apparmor_profile, sizeof(config->apparmor_profile) - 1);
+    strncpy(config->netns_name, netns_name, sizeof(config->netns_name) - 1);
 
     int clone_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC | SIGCHLD;
 
-    /* Los parámetros son:
-        1. Función que ejecutará el nuevo proceso al nacer
-        2. Pila de memoria invertida, se le pasa el inicio (stack apunta al inicio) más el tamaño del stack
-        3. Flags de clonado
-        4. Argumentos de la función
-    */
-    pid_t child_pid = clone(container_entry, stack + STACK_SIZE, clone_flags, &config);
+    // Usamos el inicio de la estructura como puntero de la pila y le pasamos la misma dirección como argumento
+    pid_t child_pid = clone(container_entry, (void *)config, clone_flags, config);
 
     if (child_pid == -1) {
         perror("Fallo en clone");
@@ -191,8 +234,9 @@ int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir
         return -1;
     }
 
-    // Importante: Aquí (en el host) es donde meteríamos el child_pid
-    // en el archivo cgroup.procs de este nodo antes de continuar.
+    // Nota técnica: Intencionadamente no hacemos free(stack) en el padre inmediatamente.
+    // Asumimos un coste de 1MB por nodo para garantizar que el kernel no descarte
+    // la página física de RAM antes de que el hijo termine de arrancar.
 
-    return child_pid; // Devolvemos el PID real del host a Python
+    return child_pid;
 }

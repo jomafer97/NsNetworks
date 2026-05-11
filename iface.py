@@ -1,7 +1,11 @@
 from pyroute2 import NetNS, IPRoute
 
 
-class Interface:
+class Iface:
+    """
+    Ofrece una capa de abstracción sobre las interfaces del kernel
+    """
+
     def __init__(self, name: str, net_ns: str | None = None):
         self.name = name
         self.net_ns = net_ns
@@ -11,7 +15,7 @@ class Interface:
         self.state = "down"
 
     def _get_handle(self):
-        """Devuelve el manejador correcto según dónde viva la interfaz."""
+        """Devuelve el handler correcto según dónde viva la interfaz."""
         if self.net_ns:
             return NetNS(self.net_ns)
 

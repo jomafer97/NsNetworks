@@ -8,6 +8,7 @@ def create_container(node_name: str, lower_dir: str, upper_dir: str, work_dir: s
     Wrapper para instanciar el contenedor desde C.
     Convierte los strings de Python a bytes para que C los interprete como char*.
     """
+    print(f"[Cython Debug] Preparando nodo: {node_name} | Netns: {netns_name}")
     # Conversión estricta a bytes (UTF-8)
     cdef bytes b_node_name = node_name.encode('utf-8')
     cdef bytes b_lower_dir = lower_dir.encode('utf-8')

@@ -1,12 +1,16 @@
 from pyroute2 import IPRoute
-from network_namespace import Interface
+from network_namespace import Iface
 from node import Node
 
 
 class Link:
-    def __init__(self, iface_1: Interface, iface_2: Interface):
+    """
+    Clase que representa un cable virtual entre dos interfaces
+    """
+
+    def __init__(self, name_1: str, name_2: str):
         """Crea el par veth físico en el host."""
-        self.ifaces: tuple[Interface, Interface] = (iface_1, iface_2)
+        self.ifaces: tuple[Iface, Iface] = (Iface(name_1), Iface(name_2))
 
         try:
             with IPRoute() as ipr:
@@ -17,7 +21,7 @@ class Link:
                     kind="veth",
                 )
         except Exception as e:
-            print(f"Error creando Link {iface_1.name}-{iface_2.name}: {e}")
+            print(f"Error creando Link {name_1}-{name_2}: {e}")
             raise
 
     def attach(
@@ -28,9 +32,9 @@ class Link:
         """Conecta dos nodos con el enlace"""
         try:
             if node_1:
-                node_1.add_interface(self.ifaces[0])
+                node_1.attach(self.ifaces[0])
             if node_2:
-                node_2.add_interface(self.ifaces[1])
+                node_2.attach(self.ifaces[1])
         except Exception as e:
             print(f"Error distribuyendo Link: {e}")
             raise
