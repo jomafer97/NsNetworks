@@ -1,0 +1,13 @@
+frr version 8.1
+frr defaults traditional
+hostname {router_name}
+log syslog informational
+no ipv6 forwarding
+!
+router ospf
+ ospf router-id {router_id}
+ redistribute connected
+ network 0.0.0.0/0 area 0.0.0.0
+!
+line vty
+!

@@ -24,6 +24,7 @@ struct node_config {
     char merged_dir[512];
     char apparmor_profile[128];
     char netns_name[128];
+    char command[1024];
 };
 
 // -----------------------------------------------------------------
@@ -32,13 +33,17 @@ struct node_config {
 int container_entry(void *arg) {
     struct node_config *config = (struct node_config *)arg;
 
-    printf("[C-Core HIJO] Memoria del Heap -> Node: %s | Netns: %s\n", config->node_name, config->netns_name);
-    fflush(stdout);
-
     printf("[C-Core] Inicializando contenedor %s (PID interno: %d)\n", config->node_name, getpid());
 
     char netns_path[256];
     snprintf(netns_path, sizeof(netns_path), "/var/run/netns/%s", config->netns_name);
+
+    /*
+    Se aprovecha el nuevo UTS para establecer un nombre nuevo al contenedor
+    */
+    if (sethostname(config->node_name, strlen(config->node_name)) != 0) {
+        perror("Fallo en sethostname");
+    }
 
     /*
     Obtención del file descriptor del netns como readonly, que se cerrará en exec
@@ -173,14 +178,15 @@ int container_entry(void *arg) {
     }
 
     // 6. Mutación final: Ejecutar el proceso (FRR o bash)
-    // Al usar execve, este proceso reemplaza la imagen de memoria,
-    // pero mantiene el PID 1 dentro del namespace.
 
-    // char *exec_args[] = {"/usr/lib/frr/frrinit.sh", "start", NULL}; // O tu script de entrada
-    // char *exec_env[]  = {"PATH=/bin:/usr/bin:/sbin:/usr/sbin", "TERM=xterm", NULL};
+    char *exec_args[4];
 
-    char *exec_args[] = {"/bin/sleep", "3600", NULL};
-    char *exec_env[]  = {"PATH=/bin:/usr/bin", NULL};
+    exec_args[0] = "/bin/sh";
+    exec_args[1] = "-c";
+    exec_args[2] = config->command;
+    exec_args[3] = NULL;
+
+    char *exec_env[]  = {"PATH=/bin:/usr/bin:/sbin:/usr/sbin", NULL};
 
     if (execve(exec_args[0], exec_args, exec_env) == -1) {
         perror("Fallo en execve");
@@ -193,7 +199,7 @@ int container_entry(void *arg) {
 // -----------------------------------------------------------------
 // ESTA ES LA FUNCIÓN QUE LLAMARÁS DESDE PYTHON (VÍA CYTHON)
 // -----------------------------------------------------------------
-int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *apparmor_profile, char *netns_name) {
+int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *apparmor_profile, char *netns_name, char* command) {
     // Sonda de seguridad
     printf("[C-Core PADRE] Inyectando en Pila -> Node: %s | Netns: %s\n", node_name, netns_name);
     fflush(stdout);
@@ -222,6 +228,7 @@ int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir
     strncpy(config->merged_dir, merged_dir, sizeof(config->merged_dir) - 1);
     strncpy(config->apparmor_profile, apparmor_profile, sizeof(config->apparmor_profile) - 1);
     strncpy(config->netns_name, netns_name, sizeof(config->netns_name) - 1);
+    strncpy(config->command, command, sizeof(config->command) - 1);
 
     int clone_flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC | SIGCHLD;
 

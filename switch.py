@@ -35,8 +35,8 @@ class Switch(Node):
             with NetNS(self.netns.name) as ns:
                 ns.link(
                     "set",
-                    index=iface.get_index(),
-                    master=self.bridge.get_index(),
+                    index=iface.get_index(ipr=ns),
+                    master=self.bridge.get_index(ipr=ns),
                     state="up",
                 )
         else:

@@ -1,5 +1,5 @@
 import os, shutil, signal, abc, subprocess
-import mininet_ng_core
+import c_core
 from network_namespace import NetworkNamespace
 from iface import Iface
 
@@ -45,11 +45,13 @@ class IsolatedNode(Node):
         lower_dir: str = f"{BASE_PATH}/alpine_base",
         apparmor_profile: str = "apparmor-default",
         limits: dict | None = None,
+        command: str = "/bin/sleep 3600",
     ):
         super().__init__(name)
         self.apparmor_profile = apparmor_profile
         self.cgroup_path = f"{IsolatedNode.CGROUP_ROOT}/{name}"
         self.cgroup_limits = limits or {}
+        self.command = command
         self.pid = None
 
         self.overlay = {
@@ -88,7 +90,7 @@ class IsolatedNode(Node):
         """
         self._setup_fs()
 
-        self.pid = mininet_ng_core.create_container(
+        self.pid = c_core.create_container(
             node_name=self.name,
             lower_dir=self.overlay["lower"],
             upper_dir=self.overlay["upper"],
@@ -96,6 +98,7 @@ class IsolatedNode(Node):
             merged_dir=self.overlay["merged"],
             apparmor_profile=self.apparmor_profile,
             netns_name=self.netns.name,
+            command=self.command,
         )
 
         if self.pid == -1:

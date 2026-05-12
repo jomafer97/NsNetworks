@@ -11,6 +11,9 @@ class NetworkNamespace:
 
     def _create_namespace(self):
         """Crea el namespace y levanta la interfaz loopback (lo)."""
+        if self.name in netns.listnetns():
+            netns.remove(self.name)
+
         netns.create(self.name)
 
         try:
