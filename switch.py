@@ -17,12 +17,15 @@ class Switch(Node):
         """
         Inicializa el Bridge interno.
         """
-        bridge_name = f"bridge-{self.name}"
-        self.bridge = Iface(bridge_name, net_ns=self.netns.name)
-        with NetNS(self.netns.name) as ns:
+        bridge_name = "br0"
+        self.bridge = Iface(bridge_name, net_ns=self.net_ns.name)
+
+        with NetNS(self.net_ns.name) as ns:
             ns.link("add", ifname=bridge_name, kind="bridge")
             self.bridge.up(ns)
-            ns.link("set", index=self.bridge.get_index(), br_stp_state=0)
+            ns.link("set", index=self.bridge.get_index(ipr=ns), br_stp_state=0)
+
+        self.net_ns.attach(self.bridge)
 
     def attach(self, iface: Iface):
         """
@@ -32,7 +35,7 @@ class Switch(Node):
         super().attach(iface)
 
         if self.bridge:
-            with NetNS(self.netns.name) as ns:
+            with NetNS(self.net_ns.name) as ns:
                 ns.link(
                     "set",
                     index=iface.get_index(ipr=ns),
@@ -46,4 +49,4 @@ class Switch(Node):
 
     def stop(self):
         print(f"[*] Destruyendo Switch {self.name}...")
-        self.netns.cleanup()
+        self.net_ns.cleanup()

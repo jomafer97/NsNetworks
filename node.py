@@ -12,7 +12,8 @@ class Node(metaclass=abc.ABCMeta):
 
     def __init__(self, name):
         self.name = name
-        self.netns = NetworkNamespace(f"netns_{name}")
+        self.net_ns = NetworkNamespace(f"netns_{name}")
+        self._iface_counter = 0
 
     @abc.abstractmethod
     def start(self):
@@ -28,7 +29,31 @@ class Node(metaclass=abc.ABCMeta):
         """
         Añade una interfaz al netns del nodo
         """
-        self.netns.add_Iface(iface)
+        self.net_ns.attach(iface)
+
+    def get_next_iface_name(self) -> str:
+        """
+        Genera un nombre dinámico y seguro.
+        Comprueba el inventario de red para evitar colisiones con interfaces hardcodeadas.
+        """
+        safe_name = self.name[:10]
+        max_tries = 256
+        tries = 0
+
+        while tries < max_tries:
+            candidate = f"{safe_name}-e{self._iface_counter}"
+
+            self._iface_counter += 1
+
+            if candidate not in self.net_ns.ifaces:
+                return candidate
+
+            tries += 1
+
+        raise RuntimeError(
+            f"[!] Error Crítico: El nodo '{self.name}' ha superado el límite "
+            f"de {max_tries} intentos o hay un bucle infinito en la asignación."
+        )
 
 
 class IsolatedNode(Node):
@@ -97,7 +122,7 @@ class IsolatedNode(Node):
             work_dir=self.overlay["work"],
             merged_dir=self.overlay["merged"],
             apparmor_profile=self.apparmor_profile,
-            netns_name=self.netns.name,
+            netns_name=self.net_ns.name,
             command=self.command,
         )
 
@@ -106,13 +131,23 @@ class IsolatedNode(Node):
 
         self._apply_cgroups()
 
-    def exec_in_node(self, command):
-        """Ejecuta un comando dentro del namespace de red del nodo"""
+    def exec_in_node(self, command: list[str]):
+        """Ejecuta un comando dentro del contexto aislado del nodo"""
         if not self.pid:
             raise RuntimeError(f"El nodo {self.name} no está en ejecución.")
 
-        prefix = ["nsenter", "-t", str(self.pid), "-nmp"]
-        return subprocess.run(prefix + command.split(), capture_output=True, text=True)
+        prefix = ["nsenter", "-t", str(self.pid), "-a", "--"]
+
+        result = subprocess.run(prefix + command, capture_output=True, text=True)
+
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+
+        if result.returncode != 0:
+            print(f"[!] Error ejecutando '{' '.join(command)}' en {self.name}:")
+            print(f"Salida de error: {stderr}")
+
+        return stdout
 
     def stop(self):
         """Elimina el nodo:
@@ -129,7 +164,7 @@ class IsolatedNode(Node):
             except (ProcessLookupError, ChildProcessError):
                 pass
 
-        self.netns.cleanup()
+        self.net_ns.cleanup()
 
         subprocess.run(
             ["umount", "-l", self.overlay["merged"]], stderr=subprocess.DEVNULL

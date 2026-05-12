@@ -21,13 +21,13 @@ class NetworkNamespace:
                 lo = Iface("lo", net_ns=self.name)
                 lo.up(ipr=ns)
 
-                self.add_Iface(lo)
+                self.attach(lo)
 
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Fallo configurando loopback en {self.name}: {e}")
 
-    def add_Iface(self, iface: Iface):
+    def attach(self, iface: Iface):
         """
         Registra una interfaz física/virtual en este namespace.
         Si la interfaz vive en otro namespace, la arrastra hacia el actual.

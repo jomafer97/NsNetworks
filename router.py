@@ -68,7 +68,7 @@ class Router(IsolatedNode):
         para escribir directamente en el /proc/sys virtualizado del contenedor.
         """
         try:
-            netns.pushns(self.netns.name)
+            netns.pushns(self.net_ns.name)
 
             with open("/proc/sys/net/ipv4/ip_forward", "w") as f:
                 f.write("1\n")

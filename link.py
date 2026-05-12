@@ -45,3 +45,31 @@ class Link:
             self.ifaces[0].delete()
         except Exception as e:
             print(f"Aviso al borrar el enlace: {e}")
+
+    def __iter__(self):
+        """
+        Permite iterar directamente sobre el objeto Link para obtener sus interfaces.
+        """
+        return iter(self.ifaces)
+
+    @classmethod
+    def connect(cls, node_1, node_2):
+        """
+        Conecta dos nodos automáticamente.
+        Pide a cada nodo su siguiente nombre disponible, instancia el cable
+        y realiza el attach delegando en los namespaces correspondientes.
+        """
+        name_1 = node_1.get_next_iface_name()
+        name_2 = node_2.get_next_iface_name()
+
+        cable = cls(name_1, name_2)
+
+        cable.attach(node_1, node_2)
+
+        for iface in cable:
+            iface.up()
+
+        print(
+            f"[*] Enlace dinámico creado: {node_1.name}({name_1}) <---> {node_2.name}({name_2})"
+        )
+        return cable
