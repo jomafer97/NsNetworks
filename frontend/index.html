@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Topología SDN - TFG</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style type="text/css">
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            text-align: center;
+        }
+
+        /* El lienzo donde se pintará la red */
+        #mynetwork {
+            width: 90%;
+            height: 600px;
+            border: 2px solid #ccc;
+            background-color: white;
+            margin: 20px auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Simulador SDN - Topología en Vivo</h2>
+    <div id="mynetwork"></div>
+
+    <script type="text/javascript">
+        // 1. Apuntamos a tu API de Python
+        const API_URL = "http://localhost:8000/api/topology";
+
+        // 2. Función asíncrona para pedir los datos
+        async function cargarTopologia() {
+            try {
+                // Hacemos la petición HTTP al backend
+                const respuesta = await fetch(API_URL);
+                const datos = await respuesta.json();
+
+                // 3. Transformamos tus datos de Python al formato que exige Vis.js
+                // Vis.js necesita que los nodos tengan un 'id' y un 'label'
+                const nodosFormateados = datos.nodes.map(nodo => ({
+                    id: nodo.name,
+                    label: nodo.name + '\n(' + nodo.type + ')',
+                    // Le damos un color distinto si es Router o Switch
+                    color: nodo.type === 'Switch' ? '#FFC107' : '#2196F3',
+                    font: { color: 'white' },
+                    shape: 'box'
+                }));
+
+                // Vis.js necesita que los enlaces digan 'from' y 'to'
+                const enlacesFormateados = datos.links.map(enlace => ({
+                    from: enlace.source,
+                    to: enlace.target,
+                    label: enlace.source_iface + ' <-> ' + enlace.target_iface,
+                    font: { align: 'middle' }
+                }));
+
+                // 4. Se lo inyectamos al lienzo HTML
+                const contenedor = document.getElementById('mynetwork');
+                const dataVis = {
+                    nodes: new vis.DataSet(nodosFormateados),
+                    edges: new vis.DataSet(enlacesFormateados)
+                };
+
+                // Opciones de físicas para que los nodos reboten bonito
+                const opciones = {
+                    physics: { barnesHut: { springLength: 200 } }
+                };
+
+                // ¡Pintar!
+                new vis.Network(contenedor, dataVis, opciones);
+
+            } catch (error) {
+                console.error("Error conectando con la API de Python:", error);
+                document.getElementById('mynetwork').innerHTML = "<p style='color:red; margin-top:20px;'>Error al cargar la topología. ¿Está FastAPI encendido?</p>";
+            }
+        }
+
+        // Ejecutar la función nada más cargar la página
+        cargarTopologia();
+    </script>
+</body>
+
+</html>

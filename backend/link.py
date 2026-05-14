@@ -1,6 +1,6 @@
+from .iface import Iface
+from .node import Node
 from pyroute2 import IPRoute
-from iface import Iface
-from node import Node
 
 
 class Link:
@@ -73,3 +73,12 @@ class Link:
             f"[*] Enlace dinámico creado: {node_1.name}({name_1}) <---> {node_2.name}({name_2})"
         )
         return cable
+
+    def to_dict(self):
+        """Devuelve la representación del enlace."""
+        return {
+            "source": self.ifaces[0].name.split("-")[0],
+            "target": self.ifaces[1].name.split("-")[0],
+            "source_iface": self.ifaces[0].name,
+            "target_iface": self.ifaces[1].name,
+        }

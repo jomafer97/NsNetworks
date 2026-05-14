@@ -1,7 +1,6 @@
-# topology.py
-
-from node import Node
-from link import Link
+from .node import Node
+from .link import Link
+import json
 
 
 class Topology:
@@ -62,3 +61,19 @@ class Topology:
             node.stop()
 
         print(f"[<<<] Topología {self.name} eliminada por completo.\n")
+
+    def export_to_json(self, filepath: str = "topology_state.json"):
+        """
+        Genera una radiografía completa de la red en formato JSON.
+        """
+        data = {
+            "topology_name": self.name,
+            "nodes": [node.to_dict() for node in self.nodes.values()],
+            "links": [link.to_dict() for link in self.links],
+        }
+
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=4)
+
+        print(f"\n[*] Estado de la topología exportado correctamente a '{filepath}'")
+        return data

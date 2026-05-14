@@ -1,5 +1,5 @@
 import ipaddress, os
-from node import IsolatedNode
+from .node import IsolatedNode
 from pyroute2 import netns
 
 

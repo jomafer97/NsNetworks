@@ -1,7 +1,7 @@
 import os, shutil, signal, abc, subprocess
 import c_core
-from network_namespace import NetworkNamespace
-from iface import Iface
+from .network_namespace import NetworkNamespace
+from .iface import Iface
 
 
 class Node(metaclass=abc.ABCMeta):
@@ -54,6 +54,22 @@ class Node(metaclass=abc.ABCMeta):
             f"[!] Error Crítico: El nodo '{self.name}' ha superado el límite "
             f"de {max_tries} intentos o hay un bucle infinito en la asignación."
         )
+
+    def to_dict(self) -> dict:
+        if isinstance(self, IsolatedNode):
+            status = "running" if getattr(self, "pid", None) else "stopped"
+            pid = self.pid
+        else:
+            status = "up"
+            pid = None
+
+        return {
+            "name": self.name,
+            "type": self.__class__.__name__,
+            "status": status,
+            "interfaces": list(self.net_ns.get_ifaces().keys()),
+            "pid": pid,
+        }
 
 
 class IsolatedNode(Node):

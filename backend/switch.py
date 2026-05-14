@@ -1,6 +1,5 @@
-from node import Node
-from iface import Iface
-from network_namespace import NetworkNamespace
+from .iface import Iface
+from .node import Node
 
 
 class Switch(Node):

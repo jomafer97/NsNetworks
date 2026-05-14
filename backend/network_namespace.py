@@ -1,5 +1,5 @@
 from pyroute2 import NetNS, netns
-from iface import Iface
+from .iface import Iface
 
 
 class NetworkNamespace:
@@ -44,6 +44,12 @@ class NetworkNamespace:
                 f"La interfaz {name} no está registrada en el netns {self.name}"
             )
         return self.ifaces[name]
+
+    def get_ifaces(self) -> dict:
+        """
+        Devuelve un diccionario con las interfaces
+        """
+        return self.ifaces
 
     def get_name(self):
         """

@@ -3,7 +3,8 @@ from Cython.Build import cythonize
 
 extension = Extension(
     name="c_core",
-    sources=["c_core.pyx", "core_namespaces.c"],
+    sources=["c_ext/c_core.pyx", "c_ext/core_namespaces.c"],
+    include_dirs=["c_ext"],
 )
 
 setup(
