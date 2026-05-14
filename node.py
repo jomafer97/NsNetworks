@@ -12,7 +12,7 @@ class Node(metaclass=abc.ABCMeta):
 
     def __init__(self, name):
         self.name = name
-        self.net_ns = NetworkNamespace(f"netns_{name}")
+        self.net_ns: NetworkNamespace = NetworkNamespace(f"netns_{name}")
         self._iface_counter = 0
 
     @abc.abstractmethod
@@ -58,7 +58,7 @@ class Node(metaclass=abc.ABCMeta):
 
 class IsolatedNode(Node):
     """
-    Nodos aislados mediante namespaces, OverlayFS, Cgroups y Apparmor
+    Nodos aislados mediante namespaces, OverlayFS y Cgroups
     """
 
     BASE_PATH = "/var/lib/net_project"
@@ -68,12 +68,10 @@ class IsolatedNode(Node):
         self,
         name: str,
         lower_dir: str = f"{BASE_PATH}/alpine_base",
-        apparmor_profile: str = "apparmor-default",
         limits: dict | None = None,
         command: str = "/bin/sleep 3600",
     ):
         super().__init__(name)
-        self.apparmor_profile = apparmor_profile
         self.cgroup_path = f"{IsolatedNode.CGROUP_ROOT}/{name}"
         self.cgroup_limits = limits or {}
         self.command = command
@@ -121,7 +119,6 @@ class IsolatedNode(Node):
             upper_dir=self.overlay["upper"],
             work_dir=self.overlay["work"],
             merged_dir=self.overlay["merged"],
-            apparmor_profile=self.apparmor_profile,
             netns_name=self.net_ns.name,
             command=self.command,
         )

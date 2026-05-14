@@ -5,23 +5,23 @@ from iface import Iface
 class NetworkNamespace:
     def __init__(self, name: str):
         self.name = name
+        self.ipr = None
         self.ifaces: dict[str, Iface] = {}
 
-        self._create_namespace()
+        self.start()
 
-    def _create_namespace(self):
+    def start(self):
         """Crea el namespace y levanta la interfaz loopback (lo)."""
         if self.name in netns.listnetns():
             netns.remove(self.name)
 
         netns.create(self.name)
+        self.ipr = NetNS(self.name)
 
         try:
-            with NetNS(self.name) as ns:
-                lo = Iface("lo", net_ns=self.name)
-                lo.up(ipr=ns)
-
-                self.attach(lo)
+            lo = Iface("lo")
+            lo.net_ns = self
+            lo.up()
 
         except Exception as e:
             self.cleanup()
@@ -32,8 +32,8 @@ class NetworkNamespace:
         Registra una interfaz física/virtual en este namespace.
         Si la interfaz vive en otro namespace, la arrastra hacia el actual.
         """
-        if iface.net_ns != self.name:
-            iface.attach_netns(self.name)
+        if iface.net_ns != self:
+            iface.attach_netns(self)
 
         self.ifaces[iface.name] = iface
 
@@ -45,9 +45,24 @@ class NetworkNamespace:
             )
         return self.ifaces[name]
 
+    def get_name(self):
+        """
+        Devuelve el nombre
+        """
+        return self.name
+
+    def get_ipr(self):
+        """
+        Devuelve una referencia hacia él
+        """
+        return self.ipr
+
     def cleanup(self):
         """Elimina el namespace del sistema."""
         try:
+            if self.ipr:
+                self.ipr.close()
+
             netns.remove(self.name)
             print(f"Namespace {self.name} eliminado.")
         except Exception as e:

@@ -1,5 +1,5 @@
 from pyroute2 import IPRoute
-from network_namespace import Iface
+from iface import Iface
 from node import Node
 
 

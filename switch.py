@@ -1,5 +1,6 @@
-from node import Node, Iface
-from pyroute2 import NetNS
+from node import Node
+from iface import Iface
+from network_namespace import NetworkNamespace
 
 
 class Switch(Node):
@@ -18,14 +19,15 @@ class Switch(Node):
         Inicializa el Bridge interno.
         """
         bridge_name = "br0"
-        self.bridge = Iface(bridge_name, net_ns=self.net_ns.name)
+        self.bridge = Iface(bridge_name)
 
-        with NetNS(self.net_ns.name) as ns:
+        ns = self.net_ns.get_ipr()
+
+        if ns:
             ns.link("add", ifname=bridge_name, kind="bridge")
-            self.bridge.up(ns)
             ns.link("set", index=self.bridge.get_index(ipr=ns), br_stp_state=0)
-
-        self.net_ns.attach(self.bridge)
+            self.bridge.net_ns = self.net_ns
+            self.bridge.up(ns)
 
     def attach(self, iface: Iface):
         """
@@ -35,7 +37,8 @@ class Switch(Node):
         super().attach(iface)
 
         if self.bridge:
-            with NetNS(self.net_ns.name) as ns:
+            ns = self.net_ns.get_ipr()
+            if ns:
                 ns.link(
                     "set",
                     index=iface.get_index(ipr=ns),

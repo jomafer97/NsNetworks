@@ -15,7 +15,6 @@ class Router(IsolatedNode):
         name: str,
         router_id: str | None = None,
         lower_dir: str = f"{IsolatedNode.BASE_PATH}/alpine_base",
-        apparmor_profile: str = "apparmor-default",
         limits: dict | None = None,
     ):
         cmd = (
@@ -28,7 +27,6 @@ class Router(IsolatedNode):
         super().__init__(
             name,
             lower_dir,
-            apparmor_profile,
             limits,
             command=cmd,
         )
@@ -91,13 +89,6 @@ class Router(IsolatedNode):
         """
         frr_etc_dir = os.path.join(self.overlay["upper"], "etc", "frr")
         os.makedirs(frr_etc_dir, exist_ok=True)
-
-        daemons_path = os.path.join(frr_etc_dir, "daemons")
-        with open("templates/daemons.template", "r") as template_file:
-            daemons_content = template_file.read()
-
-        with open(daemons_path, "w") as f:
-            f.write(daemons_content)
 
         frr_conf_path = os.path.join(frr_etc_dir, "frr.conf")
 

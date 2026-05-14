@@ -22,7 +22,6 @@ struct node_config {
     char upper_dir[512];
     char work_dir[512];
     char merged_dir[512];
-    char apparmor_profile[128];
     char netns_name[128];
     char command[1024];
 };
@@ -166,18 +165,7 @@ int container_entry(void *arg) {
     umount2("/oldroot", MNT_DETACH);
     rmdir("/oldroot");
 
-    // 5. Aplicar AppArmor
-    // Escribimos el perfil en /proc/self/attr/exec para que se aplique
-    // justo en el momento de hacer el execve.
-    int aa_fd = open("/proc/self/attr/exec", O_WRONLY);
-    if (aa_fd >= 0) {
-        dprintf(aa_fd, "exec %s", config->apparmor_profile);
-        close(aa_fd);
-    } else {
-        printf("[C-Core] Advertencia: No se pudo aplicar AppArmor.\n");
-    }
-
-    // 6. Mutación final: Ejecutar el proceso (FRR o bash)
+    // 5. Mutación final: Ejecutar el proceso (FRR o bash)
 
     char *exec_args[4];
 
@@ -199,7 +187,7 @@ int container_entry(void *arg) {
 // -----------------------------------------------------------------
 // ESTA ES LA FUNCIÓN QUE LLAMARÁS DESDE PYTHON (VÍA CYTHON)
 // -----------------------------------------------------------------
-int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *apparmor_profile, char *netns_name, char* command) {
+int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *netns_name, char* command) {
     // Sonda de seguridad
     printf("[C-Core PADRE] Inyectando en Pila -> Node: %s | Netns: %s\n", node_name, netns_name);
     fflush(stdout);
@@ -226,7 +214,6 @@ int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir
     strncpy(config->upper_dir, upper_dir, sizeof(config->upper_dir) - 1);
     strncpy(config->work_dir, work_dir, sizeof(config->work_dir) - 1);
     strncpy(config->merged_dir, merged_dir, sizeof(config->merged_dir) - 1);
-    strncpy(config->apparmor_profile, apparmor_profile, sizeof(config->apparmor_profile) - 1);
     strncpy(config->netns_name, netns_name, sizeof(config->netns_name) - 1);
     strncpy(config->command, command, sizeof(config->command) - 1);
 
@@ -240,10 +227,6 @@ int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir
         free(stack);
         return -1;
     }
-
-    // Nota técnica: Intencionadamente no hacemos free(stack) en el padre inmediatamente.
-    // Asumimos un coste de 1MB por nodo para garantizar que el kernel no descarte
-    // la página física de RAM antes de que el hijo termine de arrancar.
 
     return child_pid;
 }
