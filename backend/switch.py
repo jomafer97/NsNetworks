@@ -49,6 +49,6 @@ class Switch(Node):
                 f"[*] Aviso: Interfaz {iface.name} añadida, pero el bridge en {self.name} aún no está levantado."
             )
 
-    def stop(self):
+    def delete(self):
         print(f"[*] Destruyendo Switch {self.name}...")
         self.net_ns.cleanup()

@@ -37,6 +37,15 @@ class NetworkNamespace:
 
         self.ifaces[iface.name] = iface
 
+    def remove_iface(self, iface_name: str):
+        """
+        Elimina una interfaz del netns por su nombre
+        """
+        iface = self.ifaces.pop(iface_name, None)
+
+        if iface:
+            iface.delete()
+
     def get_Iface(self, name: str) -> Iface:
         """Recupera una interfaz para configurarla."""
         if name not in self.ifaces:

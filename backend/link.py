@@ -1,3 +1,5 @@
+import uuid
+
 from .iface import Iface
 from .node import Node
 from pyroute2 import IPRoute
@@ -10,6 +12,9 @@ class Link:
 
     def __init__(self, name_1: str, name_2: str):
         """Crea el par veth físico en el host."""
+        self.id = str(uuid.uuid4())
+        self.source = None
+        self.target = None
         self.ifaces: tuple[Iface, Iface] = (Iface(name_1), Iface(name_2))
 
         try:
@@ -24,6 +29,9 @@ class Link:
             print(f"Error creando Link {name_1}-{name_2}: {e}")
             raise
 
+    def get_id(self):
+        return self.id
+
     def attach(
         self,
         node_1: Node | None = None,
@@ -33,8 +41,10 @@ class Link:
         try:
             if node_1:
                 node_1.attach(self.ifaces[0])
+                self.source = node_1
             if node_2:
                 node_2.attach(self.ifaces[1])
+                self.target = node_2
         except Exception as e:
             print(f"Error distribuyendo Link: {e}")
             raise
@@ -42,9 +52,18 @@ class Link:
     def delete(self):
         """Destruye el cable virtual."""
         try:
-            self.ifaces[0].delete()
+            if self.source:
+                self.source.remove_iface(iface_name=self.ifaces[0].name)
+            if self.target:
+                self.target.remove_iface(iface_name=self.ifaces[1].name)
         except Exception as e:
             print(f"Aviso al borrar el enlace: {e}")
+
+    def get_source(self):
+        return self.source
+
+    def get_target(self):
+        return self.target
 
     def __iter__(self):
         """
@@ -77,8 +96,9 @@ class Link:
     def to_dict(self):
         """Devuelve la representación del enlace."""
         return {
-            "source": self.ifaces[0].name.split("-")[0],
-            "target": self.ifaces[1].name.split("-")[0],
+            "id": self.id,
+            "source": self.source.get_name() if self.source else "host",
+            "target": self.target.get_name() if self.target else "host",
             "source_iface": self.ifaces[0].name,
             "target_iface": self.ifaces[1].name,
         }

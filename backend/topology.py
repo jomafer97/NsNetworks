@@ -12,7 +12,7 @@ class Topology:
     def __init__(self, name: str):
         self.name = name
         self.nodes: dict[str, Node] = {}
-        self.links: list[Link] = []
+        self.links: dict[str, Link] = {}
 
     def add_node(self, node: Node) -> Node:
         """Registra un nodo en la topología."""
@@ -25,7 +25,7 @@ class Topology:
         print(f"[*] Nodo añadido a la topología: {node.name}")
         return node
 
-    def add_link(self, node1_name: str, node2_name: str) -> Link:
+    def add_link(self, node1_name: str, node2_name: str):
         """
         Conecta dos nodos existentes en la topología.
         """
@@ -37,9 +37,40 @@ class Topology:
                 f"[!] Error: Ambos nodos deben existir en la topología para conectarlos. ({node1_name}, {node2_name})"
             )
 
-        cable = Link.connect(n1, n2)
-        self.links.append(cable)
-        return cable
+        link = Link.connect(n1, n2)
+        self.links[link.get_id()] = link
+        return link.get_id()
+
+    def delete_link(self, link_id: str):
+        """
+        Elimina un enlace de la topología idenfificandolo por su origen
+        """
+        link = self.links.pop(link_id, None)
+
+        if link:
+            link.delete()
+
+    def start_node(self, node_name: str):
+        """Inicializa un nodo específico"""
+        if node_name in self.nodes:
+            self.nodes[node_name].start()
+
+    def delete_node(self, node_name: str):
+        """Detiene un nodo específico"""
+        node = self.nodes.pop(node_name, None)
+
+        if node:
+            links_to_delete = [
+                link_id
+                for link_id, link in self.links.items()
+                if (link.source and link.source.name == node_name)
+                or (link.target and link.target.name == node_name)
+            ]
+
+            for link_id in links_to_delete:
+                self.delete_link(link_id)
+
+            node.delete()
 
     def start_all(self):
         """Orquesta el arranque secuencial de toda la infraestructura."""
@@ -50,15 +81,15 @@ class Topology:
 
         print(f"[>>>] Topología {self.name} operativa.\n")
 
-    def stop_all(self):
+    def delete_all(self):
         """Orquesta la destrucción limpia de la infraestructura."""
         print(f"\n[<<<] Destruyendo topología: {self.name} [<<<]")
 
-        for link in self.links:
+        for link in self.links.values():
             link.delete()
 
         for node in self.nodes.values():
-            node.stop()
+            node.delete()
 
         print(f"[<<<] Topología {self.name} eliminada por completo.\n")
 

@@ -15,13 +15,16 @@ class Node(metaclass=abc.ABCMeta):
         self.net_ns: NetworkNamespace = NetworkNamespace(f"netns_{name}")
         self._iface_counter = 0
 
+    def get_name(self):
+        return self.name
+
     @abc.abstractmethod
     def start(self):
         """Arranque del nodo"""
         pass
 
     @abc.abstractmethod
-    def stop(self):
+    def delete(self):
         """Detención del nodo"""
         pass
 
@@ -30,6 +33,12 @@ class Node(metaclass=abc.ABCMeta):
         Añade una interfaz al netns del nodo
         """
         self.net_ns.attach(iface)
+
+    def remove_iface(self, iface_name: str):
+        """
+        Elimina una interfaz del nodo
+        """
+        self.net_ns.remove_iface(iface_name)
 
     def get_next_iface_name(self) -> str:
         """
@@ -162,7 +171,7 @@ class IsolatedNode(Node):
 
         return stdout
 
-    def stop(self):
+    def delete(self):
         """Elimina el nodo:
         - mata el proceso
         - Desmonta el OverlayFs y limpia directorios temporales

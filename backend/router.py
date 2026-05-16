@@ -102,7 +102,7 @@ class Router(IsolatedNode):
         with open(frr_conf_path, "w") as f:
             f.write(frr_config)
 
-    def stop(self):
+    def delete(self):
         """Libera el Router ID y elimina el nodo"""
         if hasattr(self, "router_id") and self.router_id in Router._used_ids:
             Router._used_ids.remove(self.router_id)
@@ -110,4 +110,4 @@ class Router(IsolatedNode):
             if self.router_id.startswith("10.255.0."):
                 Router._available_ids.append(self.router_id)
 
-        super().stop()
+        super().delete()

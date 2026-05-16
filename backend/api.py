@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 import threading
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
 from .topology import Topology
 from .router import Router
 from .switch import Switch
@@ -10,44 +11,26 @@ from .switch import Switch
 current_topology = None
 
 
-def arrancar_red():
-    """Lógica aislada en su propio hilo."""
+def start_net():
+    """Inicia la topología"""
     global current_topology
-    print("\n[*] Precargando topología de prueba en hilo dedicado...")
     current_topology = Topology("API-Core")
-
-    s1 = Switch("s1")
-    r1 = Router("r1")
-    r2 = Router("r2")
-
-    current_topology.add_node(s1)
-    current_topology.add_node(r1)
-    current_topology.add_node(r2)
-
-    current_topology.start_all()
-    current_topology.add_link("r1", "s1")
-    current_topology.add_link("r2", "s1")
-
-    print("[*] Topología lista. Ya puedes abrir el frontend en tu navegador.\n")
 
 
 # --- EL CONTROLADOR DE CICLO DE VIDA ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. STARTUP: Solo el proceso Worker ejecutará esto al arrancar
-    hilo_red = threading.Thread(target=arrancar_red, daemon=True)
-    hilo_red.start()
+    net_thread = threading.Thread(target=start_net, daemon=True)
+    net_thread.start()
 
-    yield  # El servidor web se queda aquí pausado sirviendo peticiones
+    yield
 
-    # 2. SHUTDOWN: Al pulsar CTRL+C, limpiamos la casa antes de salir
     if current_topology:
         print("\n[*] Apagando servidor, destruyendo topología...")
-        current_topology.stop_all()
+        current_topology.delete_all()
 
 
-# Pasamos el lifespan a la instancia de FastAPI
-app = FastAPI(title="SDN Topology API", lifespan=lifespan)
+app = FastAPI(title="Topology API", version="1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,21 +40,130 @@ app.add_middleware(
 )
 
 
-@app.get("/", response_class=HTMLResponse)
-def home():
-    """
-    Sirve el frontend directamente.
-    Al entrar en localhost:8000 desde el navegador, se cargará la interfaz gráfica.
-    """
+class NodeCreate(BaseModel):
+    name: str
+    type: str
+
+
+class LinkCreate(BaseModel):
+    source: str
+    target: str
+
+
+@app.get("/api/v1/network", tags=["Network"])
+def get_network_state():
+    """Devuelve el estado completo del grafo (Nodos y Enlaces)."""
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="El motor no está inicializado")
+    return current_topology.export_to_json("topology.json")
+
+
+@app.post("/api/v1/nodes", status_code=status.HTTP_201_CREATED, tags=["Nodes"])
+def create_node(node: NodeCreate):
+    """Instancia un nuevo nodo en el kernel y lo conecta al switch principal."""
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="El motor no está inicializado")
+
+    if node.name in current_topology.nodes:
+        raise HTTPException(
+            status_code=400, detail=f"El nodo '{node.name}' ya existe en la red."
+        )
+
     try:
-        with open("frontend/index.html", "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "<h1>Error: No se encuentra frontend/index.html</h1>"
+        if node.type.lower() == "router":
+            new_node = Router(node.name)
+        elif node.type.lower() == "switch":
+            new_node = Switch(node.name)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Tipo de nodo no soportado. Usa 'router' o 'switch'.",
+            )
+
+        current_topology.add_node(new_node)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Fallo interno del motor: {str(e)}"
+        )
 
 
-@app.get("/api/topology")
-def get_topology():
-    if current_topology:
-        return current_topology.export_to_json("temp_topo.json")
-    return {"error": "No hay topología activa"}
+@app.post(
+    "/api/v1/nodes/{node_name}/start", status_code=status.HTTP_200_OK, tags=["Nodes"]
+)
+def start_node(node_name: str):
+    global current_topology
+    if not current_topology:
+        raise HTTPException(
+            status_code=404, detail="La red no se encuentra inicializada"
+        )
+    if node_name not in current_topology.nodes:
+        raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
+
+    try:
+        current_topology.start_node(node_name)
+        return {"message": f"Nodo {node_name} arrancado."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete(
+    "/api/v1/nodes/{node_name}", status_code=status.HTTP_204_NO_CONTENT, tags=["Nodes"]
+)
+def delete_node(node_name: str):
+    global current_topology
+    if not current_topology:
+        raise HTTPException(
+            status_code=404, detail="La red no se encuentra inicializada"
+        )
+    if node_name not in current_topology.nodes:
+        raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
+
+    try:
+        current_topology.delete_node(node_name)
+        return
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/links", status_code=status.HTTP_201_CREATED, tags=["Links"])
+def create_link(link: LinkCreate):
+    """Conecta dos nodos existentes mediante un cable veth."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(
+            status_code=404, detail="La red no se encuentra inicializada"
+        )
+    if link.source not in current_topology.nodes:
+        raise HTTPException(
+            status_code=404, detail=f"El nodo '{link.source}' no existe."
+        )
+    if link.target not in current_topology.nodes:
+        raise HTTPException(
+            status_code=404, detail=f"El nodo '{link.target}' no existe."
+        )
+
+    try:
+        current_topology.add_link(node1_name=link.source, node2_name=link.target)
+        return {"message": "Enlace creado exitosamente"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete(
+    "/api/v1/links/{link_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Links"]
+)
+def delete_link(link_id: str):
+    """Destruye un cable virtual a partir de su ID único."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="La red no está inicializada")
+
+    try:
+        current_topology.delete_link(link_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Fallo del kernel al borrar enlace: {str(e)}"
+        )

@@ -1,4 +1,6 @@
 test*
 *.so
 *.sh
-*.txt
+notas.txt
+frontend
+.vscode
