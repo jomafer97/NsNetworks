@@ -2,5 +2,4 @@ test*
 *.so
 *.sh
 notas.txt
-frontend
 .vscode

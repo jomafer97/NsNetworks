@@ -34,6 +34,12 @@ class Node(metaclass=abc.ABCMeta):
         """
         self.net_ns.attach(iface)
 
+    def get_ifaces(self):
+        """
+        Devuelve el diccionario de interfaces
+        """
+        return self.net_ns.get_ifaces()
+
     def remove_iface(self, iface_name: str):
         """
         Elimina una interfaz del nodo
@@ -72,11 +78,20 @@ class Node(metaclass=abc.ABCMeta):
             status = "up"
             pid = None
 
+        serialized_interfaces = []
+
+        for iface_obj in self.get_ifaces().values():
+            ip_cidr = f"{iface_obj.addr}/{iface_obj.mask}" if iface_obj.addr else None
+
+            serialized_interfaces.append(
+                {"name": iface_obj.name, "ip": ip_cidr, "state": iface_obj.state}
+            )
+
         return {
             "name": self.name,
             "type": self.__class__.__name__,
             "status": status,
-            "interfaces": list(self.net_ns.get_ifaces().keys()),
+            "interfaces": serialized_interfaces,
             "pid": pid,
         }
 

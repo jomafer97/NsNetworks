@@ -100,7 +100,7 @@ class Topology:
         data = {
             "topology_name": self.name,
             "nodes": [node.to_dict() for node in self.nodes.values()],
-            "links": [link.to_dict() for link in self.links],
+            "links": [link.to_dict() for link in self.links.values()],
         }
 
         with open(filepath, "w") as f:

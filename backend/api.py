@@ -50,6 +50,11 @@ class LinkCreate(BaseModel):
     target: str
 
 
+class IPAssignment(BaseModel):
+    addr: str
+    mask: int
+
+
 @app.get("/api/v1/network", tags=["Network"])
 def get_network_state():
     """Devuelve el estado completo del grafo (Nodos y Enlaces)."""
@@ -167,3 +172,32 @@ def delete_link(link_id: str):
         raise HTTPException(
             status_code=500, detail=f"Fallo del kernel al borrar enlace: {str(e)}"
         )
+
+
+@app.post(
+    "/api/v1/nodes/{node_name}/interfaces/{iface_name}/ip",
+    status_code=status.HTTP_200_OK,
+    tags=["Interfaces"],
+)
+def set_addr(node_name: str, iface_name: str, data: IPAssignment):
+    global current_topology
+    if not current_topology:
+        raise HTTPException(
+            status_code=404, detail="La red no se encuentra inicializada"
+        )
+    node = current_topology.nodes.get(node_name)
+    if not node:
+        raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
+
+    iface = node.get_ifaces().get(iface_name)
+    if not iface:
+        raise HTTPException(
+            status_code=404,
+            detail=f"El nodo '{node_name}' no tiene la interfaz {iface_name}.",
+        )
+
+    try:
+        iface.set_addr(addr=data.addr, mask=data.mask)
+        return {"message": "IP asignada con éxito"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

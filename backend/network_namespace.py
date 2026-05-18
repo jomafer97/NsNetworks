@@ -54,7 +54,7 @@ class NetworkNamespace:
             )
         return self.ifaces[name]
 
-    def get_ifaces(self) -> dict:
+    def get_ifaces(self) -> dict[str, Iface]:
         """
         Devuelve un diccionario con las interfaces
         """
