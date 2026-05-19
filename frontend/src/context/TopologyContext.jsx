@@ -6,6 +6,10 @@ export const TopologyContext = createContext()
 export function TopologyContextProvider({ children }) {
     const [nodes, setNodes] = useState([]);
     const [links, setLinks] = useState([]);
+    const [isLinkingMode, setIsLinkingMode] = useState(false);
+    const [isDeletingLinkMode, setIsDeletingLinkMode] = useState(false);
+    const [selectedNode, setSelectedNode] = useState(null);
+    const [linkSource, setLinkSource] = useState(null);
     const nextRouterId = useRef(0)
     const nextSwitchId = useRef(0)
 
@@ -104,14 +108,32 @@ export function TopologyContextProvider({ children }) {
         }
     }
 
+    const toggleLinkingMode = () => {
+        setIsDeletingLinkMode(false)
+        setIsLinkingMode(!isLinkingMode);
+        setLinkSource(null);
+    };
+
+    const toggleDeletingLinkMode = () => {
+        setIsLinkingMode(false)
+        setIsDeletingLinkMode(!isDeletingLinkMode);
+        setLinkSource(null);
+    };
+
     useEffect(() => {
         fetchTopology();
     }, [fetchTopology]);
 
     return (
         <TopologyContext.Provider value={{
-            nodes,
-            links,
+            nodes, setNodes,
+            links, setLinks,
+
+            isLinkingMode, setIsLinkingMode, toggleLinkingMode,
+            isDeletingLinkMode, setIsDeletingLinkMode, toggleDeletingLinkMode,
+            selectedNode, setSelectedNode,
+            linkSource, setLinkSource,
+
             createNode,
             startNode,
             deleteNode,

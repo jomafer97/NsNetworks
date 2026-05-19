@@ -2,14 +2,14 @@ import { useContext, useState } from 'react';
 import { TopologyContext } from '../../context/TopologyContext';
 import { DetailsPanel } from './DetailsPanel';
 
-export function NodePanel({ nodeInfo, clearSelection }) {
-    const { nodes, startNode, deleteNode } = useContext(TopologyContext);
+export function NodePanel() {
+    const { nodes, startNode, deleteNode, selectedNode, setSelectedNode } = useContext(TopologyContext);
 
     const [isStarting, setIsStarting] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const liveNodeData = nodeInfo
-        ? nodes.find(n => n.name === nodeInfo.name)
+    const liveNodeData = selectedNode
+        ? nodes.find(n => n.name === selectedNode.name)
         : null;
 
     const handleStart = async () => {
@@ -21,7 +21,7 @@ export function NodePanel({ nodeInfo, clearSelection }) {
     const handleDelete = async () => {
         setIsDeleting(true);
         await deleteNode(liveNodeData.name);
-        clearSelection();
+        setSelectedNode(null);
         setIsDeleting(false);
     };
 

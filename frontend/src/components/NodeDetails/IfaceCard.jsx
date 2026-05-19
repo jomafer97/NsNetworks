@@ -1,11 +1,24 @@
 import { useContext, useState } from "react"
 import { TopologyContext } from "../../context/TopologyContext"
 
-export const IfaceCard = ({ nodeName, ifaceName, ifaceIp }) => {
+export const IfaceCard = ({ nodeName, nodeType, ifaceName, ifaceIp }) => {
     const { configureInterfaceIp } = useContext(TopologyContext)
     const [inputValue, setInputValue] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [isChanging, setIsChanging] = useState(false)
+
+    if (nodeType?.toLowerCase() === 'switch') {
+        return (
+            <div className="flex items-center justify-between w-full">
+                <code className="text-blue-950 font-mono text-sm font-bold min-w-15">
+                    {ifaceName}
+                </code>
+                <span className="text-xs text-gray-500 font-semibold uppercase tracking-wider bg-gray-100 px-2 py-1 rounded border border-gray-200 shadow-sm cursor-not-allowed" title="Los puertos de Switch operan en Capa 2 y no requieren IP">
+                    Puerto L2
+                </span>
+            </div>
+        )
+    }
 
     async function handleSave() {
         if (!inputValue.trim()) return;
@@ -27,7 +40,7 @@ export const IfaceCard = ({ nodeName, ifaceName, ifaceIp }) => {
     }
 
     return (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between w-full">
             <code className="text-blue-950 font-mono text-sm font-bold min-w-15">
                 {ifaceName}
             </code>
@@ -46,7 +59,7 @@ export const IfaceCard = ({ nodeName, ifaceName, ifaceIp }) => {
                 </div>
             ) : (
                 <div className="flex items-center gap-2 flex-1 ml-2">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         IP/CIDR:
                     </span>
                     <input

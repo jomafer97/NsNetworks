@@ -4,7 +4,7 @@ import { Network } from 'vis-network';
 import { DataSet } from 'vis-data';
 
 export function TopologyGraph({ onNodeSelect }) {
-    const { nodes, links } = useContext(TopologyContext)
+    const { nodes, links } = useContext(TopologyContext);
 
     const containerRef = useRef(null);
     const networkRef = useRef(null);
@@ -23,14 +23,14 @@ export function TopologyGraph({ onNodeSelect }) {
             const options = {
                 physics: {
                     barnesHut: {
-                        springLength: 150,
-                        centralGravity: 0.2,
-                        gravitationalConstant: -2500,
-                        springConstant: 0.03,
-                        damping: 0.09
+                        springLength: 150,         // Un poco más de aire entre nodos
+                        centralGravity: 0.0,
+                        gravitationalConstant: -2500, // Mayor repulsión para que no se pisen al crear varios
+                        springConstant: 0.15,      // ⚖️ Tensión media: ni chicle ni acero.
+                        damping: 0.4               // ⚖️ Amortiguación suave: permite un micro-rebote natural al soltar
                     },
                     solver: 'barnesHut',
-                    maxVelocity: 25,
+                    maxVelocity: 40,               // ⚖️ Bajamos la velocidad máxima. Siguen al ratón bien, pero sin teletransportarse robóticamente
                     minVelocity: 0.75,
                     stabilization: {
                         enabled: true,
@@ -52,24 +52,39 @@ export function TopologyGraph({ onNodeSelect }) {
             );
 
             networkRef.current.on('click', (params) => {
+                let clickedNode = null;
+                let clickedEdgeId = null;
+
                 if (params.nodes.length > 0) {
-                    const clickedNodeId = params.nodes[0];
-                    const nodeData = nodesDataSet.current.get(clickedNodeId);
-                    onNodeSelectRef.current(nodeData?.rawData || null);
-                } else {
-                    onNodeSelectRef.current(null);
+                    const nodeId = params.nodes[0];
+                    clickedNode = nodesDataSet.current.get(nodeId)?.rawData || null;
                 }
+                else if (params.edges.length > 0) {
+                    clickedEdgeId = params.edges[0];
+                }
+
+                onNodeSelectRef.current({
+                    node: clickedNode,
+                    edge: clickedEdgeId
+                });
             });
         }
+
+        // 🧹 REFACTOR: Cleanup para evitar memory leaks si el componente se desmonta
+        return () => {
+            if (networkRef.current) {
+                networkRef.current.destroy();
+                networkRef.current = null;
+            }
+        };
     }, []);
 
     useEffect(() => {
-        // 1. Traducimos al formato gráfico
         const formattedNodes = nodes.map(node => ({
             id: node.name,
             label: `${node.name}\n(${node.type})`,
             shape: 'box',
-            color: node.type.toLowerCase() === 'switch' ? '#FFC107' : '#2196F3', // ¡Añadido el toLowerCase por seguridad!
+            color: node.type.toLowerCase() === 'switch' ? '#FFC107' : '#2196F3',
             font: { color: 'white', face: 'monospace' },
             rawData: node
         }));
@@ -87,7 +102,6 @@ export function TopologyGraph({ onNodeSelect }) {
         linksDataSet.current.update(formattedLinks);
 
         const paintedNodeIds = nodesDataSet.current.getIds();
-
         paintedNodeIds.forEach(paintedId => {
             if (!nodes.some(backendNode => backendNode.name === paintedId)) {
                 nodesDataSet.current.remove(paintedId);
@@ -95,7 +109,6 @@ export function TopologyGraph({ onNodeSelect }) {
         });
 
         const paintedLinkIds = linksDataSet.current.getIds();
-
         paintedLinkIds.forEach(paintedId => {
             if (!links.some(backendLink => backendLink.id === paintedId)) {
                 linksDataSet.current.remove(paintedId);
@@ -105,9 +118,6 @@ export function TopologyGraph({ onNodeSelect }) {
     }, [nodes, links]);
 
     return (
-        <div
-            ref={containerRef}
-            className='w-full h-150'
-        />
+        <div ref={containerRef} className="w-full h-full outline-none bg-white"></div>
     );
 }

@@ -12,11 +12,15 @@ class Switch(Node):
     def __init__(self, name: str):
         super().__init__(name)
         self.bridge = None
+        self.start()
 
     def start(self):
         """
         Inicializa el Bridge interno.
         """
+        if self.bridge:
+            return
+
         bridge_name = "br0"
         self.bridge = Iface(bridge_name)
 

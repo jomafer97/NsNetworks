@@ -91,6 +91,9 @@ class Iface:
         if ipr is None:
             ipr, close_ipr = self._get_handle()
 
+        if self.addr:
+            self.delete_addr(ipr=ipr)
+
         try:
             current_idx = self.get_index(ipr=ipr)
             ipr.addr("add", index=current_idx, address=addr, mask=mask)
@@ -98,6 +101,30 @@ class Iface:
             self.mask = mask
         except Exception as e:
             print(f"Error al establecer IP en interfaz: {e}")
+            raise
+        finally:
+            if close_ipr and ipr:
+                ipr.close()
+
+    def delete_addr(self, ipr=None):
+        """
+        Elimina la IP actual de la interfaz tanto en el kernel de Linux
+        como en la memoria interna de Python.
+        """
+        if not self.addr or not self.mask:
+            return
+
+        close_ipr = False
+        if ipr is None:
+            ipr, close_ipr = self._get_handle()
+
+        try:
+            current_idx = self.get_index(ipr=ipr)
+            ipr.addr("delete", index=current_idx, address=self.addr, mask=self.mask)
+            self.addr = None
+            self.mask = None
+        except Exception as e:
+            print(f"Error al eliminar IP en interfaz {self.name}: {e}")
             raise
         finally:
             if close_ipr and ipr:

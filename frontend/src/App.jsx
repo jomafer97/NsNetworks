@@ -1,94 +1,114 @@
-import { useState, useContext } from 'react';
+import { useContext } from 'react';
 import { TopologyGraph } from './components/TopologyGraph/TopologyGraph';
 import { NodePanel } from './components/NodeDetails/NodePanel';
-import { TopologyContext } from './context/TopologyContext'; // Ajusta la ruta
+import { TopologyContext } from './context/TopologyContext';
 import { ControlPanel } from './components/ControlPanel/ControlPanel';
 
 function App() {
-  const { createLink } = useContext(TopologyContext);
+  // Extraemos TODO el estado global desde nuestro Contexto
+  const {
+    isLinkingMode, setIsLinkingMode,
+    isDeletingLinkMode, setIsDeletingLinkMode,
+    linkSource, setLinkSource,
+    setSelectedNode,
+    createLink, deleteLink
+  } = useContext(TopologyContext);
 
-  const [selectedNode, setSelectedNode] = useState(null);
+  // La función maestra que procesa los clics del lienzo
+  const handleGraphClick = async ({ node, edge }) => {
 
-  const [isLinkingMode, setIsLinkingMode] = useState(false);
-  const [linkSource, setLinkSource] = useState(null);
-
-  const handleGraphClick = async (nodeData) => {
-    if (!isLinkingMode) {
-      setSelectedNode(nodeData);
+    // 1. MODO NORMAL (Inspección)
+    if (!isLinkingMode && !isDeletingLinkMode) {
+      setSelectedNode(node);
       return;
     }
 
-    if (!nodeData) {
-      setIsLinkingMode(false);
-      setLinkSource(null);
+    // 2. MODO BORRAR CABLE
+    if (isDeletingLinkMode) {
+      if (edge) {
+        await deleteLink(edge); // Mandamos el ID del cable rojo al backend
+        setIsDeletingLinkMode(false); // Apagamos el modo tijeras
+      } else if (!node) {
+        setIsDeletingLinkMode(false); // Clic al fondo blanco = cancelar
+      }
       return;
     }
 
-    if (!linkSource) {
-      setLinkSource(nodeData.name);
-    }
-    else {
-      if (linkSource !== nodeData.name) {
-        await createLink(linkSource, nodeData.name);
+    // 3. MODO CREAR CABLE
+    if (isLinkingMode) {
+      if (!node) {
+        setIsLinkingMode(false);
+        setLinkSource(null);
+        return;
       }
 
-      setLinkSource(null);
-      setIsLinkingMode(false);
+      if (!linkSource) {
+        setLinkSource(node.name);
+      } else {
+        if (linkSource !== node.name) {
+          await createLink(linkSource, node.name);
+        }
+        setLinkSource(null);
+        setIsLinkingMode(false);
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6 font-sans flex flex-col">
+    <div className="flex flex-col h-screen w-full bg-[#111827] overflow-hidden">
 
-      {/* HEADER PRINCIPAL Y CONTROLES */}
-      <div className="max-w-7xl mx-auto w-full flex justify-between items-center mb-6">
+      {/* HEADER LIMPIO */}
+      <div className="w-full flex justify-between items-center mb-6 px-6 pt-6 shrink-0">
         <h2 className="text-3xl font-bold text-amber-50">
           Controlador SDN
         </h2>
-
-        {/* BOTÓN PARA ACTIVAR EL MODO CABLEADO */}
-        <button
-          onClick={() => {
-            setIsLinkingMode(!isLinkingMode);
-            setLinkSource(null);
-          }}
-          className={`px-4 py-2 rounded font-semibold transition-colors shadow-sm ${isLinkingMode
-            ? 'bg-gray-600 text-white hover:bg-gray-700'
-            : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-        >
-          {isLinkingMode ? '✕ Cancelar Cableado' : '🔌 Conectar Nodos'}
-        </button>
       </div>
 
-      {/* BANNER DINÁMICO DE FEEDBACK (Solo se ve si el modo está activo) */}
+      {/* BANNER DE AVISO: MODO CONEXIÓN */}
       {isLinkingMode && (
-        <div className="max-w-7xl mx-auto w-full mb-4 bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded shadow-sm animate-pulse">
-          <p className="font-semibold">
-            Modo Conexión Activo: {' '}
-            {!linkSource
-              ? 'Haz clic en el nodo ORIGEN.'
-              : `Has seleccionado '${linkSource}'. Ahora haz clic en el nodo DESTINO.`}
-          </p>
+        <div className="w-full mb-4 px-6 shrink-0">
+          <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded shadow-sm animate-pulse">
+            <p className="font-semibold">
+              Modo Conexión Activo: {' '}
+              {!linkSource
+                ? 'Haz clic en el nodo ORIGEN.'
+                : `Has seleccionado '${linkSource}'. Ahora haz clic en el nodo DESTINO.`}
+            </p>
+          </div>
         </div>
       )}
 
-      {/* CONTENEDOR DE LA TOPOLOGÍA */}
-      <div className="flex gap-6 max-w-7xl mx-auto w-full h-150">
+      {/* BANNER DE AVISO: MODO BORRAR */}
+      {isDeletingLinkMode && (
+        <div className="w-full mb-4 px-6 shrink-0">
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm animate-pulse">
+            <p className="font-semibold">
+              Modo Borrado Activo: Haz clic sobre un cable en el mapa para destruirlo.
+            </p>
+          </div>
+        </div>
+      )}
 
-        {/* Grafo: Fíjate que ahora le pasamos nuestra función interceptora */}
-        <div className={`flex-3 bg-white rounded-lg border shadow-sm overflow-hidden relative ${isLinkingMode ? 'border-blue-400 ring-2 ring-blue-100 cursor-crosshair' : 'border-gray-200'
-          }`}>
-          <TopologyGraph onNodeSelect={handleGraphClick} />
+      {/* CONTENEDOR PRINCIPAL: 3 COLUMNAS */}
+      <div className="flex flex-1 gap-6 w-full px-6 pb-6 min-h-0 min-w-0">
+
+        {/* 1. PANEL LATERAL IZQUIERDO (Herramientas) */}
+        <div className="w-64 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto p-4 relative z-10">
+          <ControlPanel />
         </div>
 
-        {/* Panel Lateral */}
-        <div className="flex-1">
-          <NodePanel
-            nodeInfo={selectedNode}
-            clearSelection={() => setSelectedNode(null)}
-          />
-          <ControlPanel />
+        {/* 2. LIENZO DE TOPOLOGÍA (Centro) */}
+        <div className={`flex-1 bg-white rounded-lg border shadow-sm relative min-h-0 min-w-0 ${isLinkingMode ? 'border-blue-400 ring-2 ring-blue-100 cursor-crosshair' :
+            isDeletingLinkMode ? 'border-red-400 ring-2 ring-red-100 cursor-crosshair' : 'border-gray-200'
+          }`}>
+          <div className="absolute inset-0 overflow-hidden rounded-lg">
+            <TopologyGraph onNodeSelect={handleGraphClick} />
+          </div>
+        </div>
+
+        {/* 3. PANEL LATERAL DERECHO (Monitorización) */}
+        <div className="w-80 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto relative z-10">
+          <NodePanel />
         </div>
 
       </div>

@@ -18,16 +18,18 @@ export function DetailsPanel({ nodeInfo }) {
                 </span>
             </p>
 
-            <p>
-                <span className="font-semibold text-gray-900">PID en el host:</span>{' '}
-                {nodeInfo.pid !== null ? (
-                    <code className="bg-gray-100 text-gray-800 px-2 py-1 rounded font-mono text-xs">
-                        {nodeInfo.pid}
-                    </code>
-                ) : (
-                    <span className="text-gray-400 italic">No inicializado</span>
-                )}
-            </p>
+            {nodeInfo.type?.toLowerCase() === 'router' && (
+                <p>
+                    <span className="font-semibold text-gray-900">PID en el host:</span>{' '}
+                    {nodeInfo.pid !== null ? (
+                        <code className="bg-gray-100 text-gray-800 px-2 py-1 rounded font-mono text-xs">
+                            {nodeInfo.pid}
+                        </code>
+                    ) : (
+                        <span className="text-gray-400 italic">No inicializado</span>
+                    )}
+                </p>
+            )}
 
             <div>
                 <p className="font-semibold text-gray-900 mb-2">Interfaces virtuales:</p>
@@ -39,7 +41,13 @@ export function DetailsPanel({ nodeInfo }) {
 
                             return (
                                 <li key={`${nodeInfo.name}-${ifaceName}`} className="flex flex-col gap-1 p-2 bg-gray-50 rounded border border-gray-200">
-                                    <IfaceCard nodeName={nodeInfo.name} ifaceName={ifaceName} ifaceIp={ifaceIp} />
+                                    <IfaceCard
+                                        key={iface.name}
+                                        nodeName={nodeInfo.name}
+                                        nodeType={nodeInfo.type}
+                                        ifaceName={iface.name}
+                                        ifaceIp={iface.ip}
+                                    />
                                 </li>
                             );
                         })}
