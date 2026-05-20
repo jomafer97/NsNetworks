@@ -71,13 +71,6 @@ class Node(metaclass=abc.ABCMeta):
         )
 
     def to_dict(self) -> dict:
-        if isinstance(self, IsolatedNode):
-            status = "running" if getattr(self, "pid", None) else "stopped"
-            pid = self.pid
-        else:
-            status = "up"
-            pid = None
-
         serialized_interfaces = []
 
         for iface_obj in self.get_ifaces().values():
@@ -90,9 +83,7 @@ class Node(metaclass=abc.ABCMeta):
         return {
             "name": self.name,
             "type": self.__class__.__name__,
-            "status": status,
             "interfaces": serialized_interfaces,
-            "pid": pid,
         }
 
 
@@ -130,15 +121,21 @@ class IsolatedNode(Node):
         os.makedirs(self.overlay["work"], exist_ok=True)
         os.makedirs(self.overlay["merged"], exist_ok=True)
 
-    def _apply_cgroups(self):
+    def set_cgroups(self, new_limits: dict):
+        """
+        Actualiza los cgroups en tiempo de ejecución.
+        Si un límite previo no está en el nuevo diccionario, se resetea a su valor por defecto (ilimitado).
+        """
+        keys_to_reset = set(self.cgroup_limits.keys()) - set(new_limits.keys())
+        self.cgroup_limits = new_limits
+        self._apply_cgroups(keys_to_reset)
+
+    def _apply_cgroups(self, keys_to_reset: set | None = None):
         """Aplica la jerarquía de Cgroups v2 y los límites"""
         os.makedirs(self.cgroup_path, exist_ok=True)
 
         with open(f"{IsolatedNode.CGROUP_ROOT}/cgroup.subtree_control", "w") as f:
             f.write("+memory +pids +cpu")
-
-        with open(f"{self.cgroup_path}/cgroup.procs", "w") as f:
-            f.write(str(self.pid))
 
         for key, value in self.cgroup_limits.items():
             path = f"{self.cgroup_path}/{key}"
@@ -146,12 +143,21 @@ class IsolatedNode(Node):
                 with open(path, "w") as f:
                     f.write(str(value))
 
+        if keys_to_reset:
+            for key in keys_to_reset:
+                path = f"{self.cgroup_path}/{key}"
+                if os.path.exists(path):
+                    with open(path, "w") as f:
+                        f.write("max")
+
     def start(self):
         """Inicia el entorno de la siguiente forma:
         - Crea los directorios de OverlayFS y Cgroups
         - Invoca al motor de C para que haga el unshare y pivot_root
         """
         self._setup_fs()
+
+        self._apply_cgroups()
 
         self.pid = c_core.create_container(
             node_name=self.name,
@@ -161,12 +167,11 @@ class IsolatedNode(Node):
             merged_dir=self.overlay["merged"],
             netns_name=self.net_ns.name,
             command=self.command,
+            cgroup_path=self.cgroup_path,
         )
 
         if self.pid == -1:
             raise RuntimeError(f"Fallo crítico al levantar el nodo {self.name} en C")
-
-        self._apply_cgroups()
 
     def exec_in_node(self, command: list[str]):
         """Ejecuta un comando dentro del contexto aislado del nodo"""
@@ -218,3 +223,39 @@ class IsolatedNode(Node):
             print(f"[*] Aviso: No se pudo eliminar el cgroup de {self.name}: {e}")
 
         print(f"[*] Nodo {self.name} destruido limpiamente.")
+
+    def get_cgroups_for_frontend(self) -> dict:
+        """
+        Parsea el diccionario interno de cgroups a formato legible por React.
+        Usa validación estricta para evitar caídas de la API.
+        """
+        res: dict[str, int | None] = {"cpu": None, "ram": None}
+
+        mem_max = self.cgroup_limits.get("memory.max")
+
+        if mem_max is not None:
+            mem_str = str(mem_max).strip()
+            if mem_str.isdigit():
+                res["ram"] = int(mem_str) // 1048576
+
+        cpu_max = self.cgroup_limits.get("cpu.max")
+
+        if cpu_max is not None:
+            cpu_str = str(cpu_max).strip()
+            parts = cpu_str.split()
+
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                quota = int(parts[0])
+                period = int(parts[1])
+
+                if period > 0:
+                    res["cpu"] = int((quota / period) * 100)
+        return res
+
+    def to_dict(self) -> dict:
+        data = super().to_dict()
+
+        data["status"] = "UP" if self.pid else "DOWN"
+        data["pid"] = self.pid
+        data["cgroups"] = self.get_cgroups_for_frontend()
+        return data

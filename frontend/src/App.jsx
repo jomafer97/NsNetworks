@@ -1,8 +1,9 @@
 import { useContext } from 'react';
 import { TopologyGraph } from './components/TopologyGraph/TopologyGraph';
-import { NodePanel } from './components/NodeDetails/NodePanel';
+import { NodePanel } from './components/NodeDetails/NodePanel/NodePanel';
 import { TopologyContext } from './context/TopologyContext';
 import { ControlPanel } from './components/ControlPanel/ControlPanel';
+import { InspectorPanel } from './components/NodeDetails/InspectorPanel';
 
 function App() {
   // Extraemos TODO el estado global desde nuestro Contexto
@@ -10,31 +11,35 @@ function App() {
     isLinkingMode, setIsLinkingMode,
     isDeletingLinkMode, setIsDeletingLinkMode,
     linkSource, setLinkSource,
-    setSelectedNode,
+    setSelectedNode, setSelectedLink,
     createLink, deleteLink
   } = useContext(TopologyContext);
 
-  // La función maestra que procesa los clics del lienzo
   const handleGraphClick = async ({ node, edge }) => {
-
-    // 1. MODO NORMAL (Inspección)
     if (!isLinkingMode && !isDeletingLinkMode) {
-      setSelectedNode(node);
-      return;
-    }
-
-    // 2. MODO BORRAR CABLE
-    if (isDeletingLinkMode) {
-      if (edge) {
-        await deleteLink(edge); // Mandamos el ID del cable rojo al backend
-        setIsDeletingLinkMode(false); // Apagamos el modo tijeras
-      } else if (!node) {
-        setIsDeletingLinkMode(false); // Clic al fondo blanco = cancelar
+      if (node) {
+        setSelectedNode(node);
+        setSelectedLink(null);
+      } else if (edge) {
+        setSelectedLink(edge)
+        setSelectedNode(null);
+      } else {
+        setSelectedNode(null);
+        setSelectedLink(null);
       }
       return;
     }
 
-    // 3. MODO CREAR CABLE
+    if (isDeletingLinkMode) {
+      if (edge) {
+        await deleteLink(edge);
+        setIsDeletingLinkMode(false);
+      } else if (!node) {
+        setIsDeletingLinkMode(false);
+      }
+      return;
+    }
+
     if (isLinkingMode) {
       if (!node) {
         setIsLinkingMode(false);
@@ -93,22 +98,22 @@ function App() {
       <div className="flex flex-1 gap-6 w-full px-6 pb-6 min-h-0 min-w-0">
 
         {/* 1. PANEL LATERAL IZQUIERDO (Herramientas) */}
-        <div className="w-64 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto p-4 relative z-10">
+        <div className="w-1/6 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto p-4 relative z-10">
           <ControlPanel />
         </div>
 
         {/* 2. LIENZO DE TOPOLOGÍA (Centro) */}
         <div className={`flex-1 bg-white rounded-lg border shadow-sm relative min-h-0 min-w-0 ${isLinkingMode ? 'border-blue-400 ring-2 ring-blue-100 cursor-crosshair' :
-            isDeletingLinkMode ? 'border-red-400 ring-2 ring-red-100 cursor-crosshair' : 'border-gray-200'
+          isDeletingLinkMode ? 'border-red-400 ring-2 ring-red-100 cursor-crosshair' : 'border-gray-200'
           }`}>
           <div className="absolute inset-0 overflow-hidden rounded-lg">
             <TopologyGraph onNodeSelect={handleGraphClick} />
           </div>
         </div>
 
-        {/* 3. PANEL LATERAL DERECHO (Monitorización) */}
-        <div className="w-80 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto relative z-10">
-          <NodePanel />
+        {/* 3. PANEL LATERAL DERECHO */}
+        <div className="w-1/5 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto relative z-10">
+          <InspectorPanel />
         </div>
 
       </div>

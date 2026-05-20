@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .topology import Topology
+from .node import IsolatedNode
 from .router import Router
 from .switch import Switch
 
@@ -48,6 +49,11 @@ class NodeCreate(BaseModel):
 class LinkCreate(BaseModel):
     source: str
     target: str
+
+
+class CgroupAssignment(BaseModel):
+    cpu: int | None = None
+    ram: int | None = None
 
 
 class IPAssignment(BaseModel):
@@ -199,5 +205,45 @@ def set_addr(node_name: str, iface_name: str, data: IPAssignment):
     try:
         iface.set_addr(addr=data.addr, mask=data.mask)
         return {"message": "IP asignada con éxito"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/api/v1/nodes/{node_name}/cgroups",
+    status_code=status.HTTP_200_OK,
+    tags=["Nodes"],
+)
+def set_cgroups(node_name: str, data: CgroupAssignment):
+    global current_topology
+    if not current_topology:
+        raise HTTPException(
+            status_code=404, detail="La red no se encuentra inicializada"
+        )
+
+    node = current_topology.nodes.get(node_name)
+
+    if not node:
+        raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
+
+    if not isinstance(node, IsolatedNode):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se puede asignar cgroups al nodo '{node_name}'.",
+        )
+
+    limits = {}
+
+    if data.ram:
+        bytes_ram = int(data.ram) * 1024 * 1024
+        limits["memory.max"] = str(bytes_ram)
+
+    if data.cpu:
+        quota = int((data.cpu / 100.0) * 100000)
+        limits["cpu.max"] = f"{quota} 100000"
+
+    try:
+        node.set_cgroups(limits)
+        return {"message": "Cgroups configurados con éxito"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

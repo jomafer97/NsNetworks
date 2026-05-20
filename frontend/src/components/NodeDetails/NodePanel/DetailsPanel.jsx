@@ -1,4 +1,5 @@
 import { IfaceCard } from "./IfaceCard";
+import { CgroupsPanel } from "./CgroupsPanel";
 
 export function DetailsPanel({ nodeInfo }) {
     return (
@@ -13,7 +14,7 @@ export function DetailsPanel({ nodeInfo }) {
 
             <p>
                 <span className="font-semibold text-gray-900">Estado:</span>{' '}
-                <span className={`font-bold ${nodeInfo.status === 'running' || nodeInfo.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                <span className={`font-bold ${nodeInfo.status === 'UP' ? 'text-green-600' : 'text-red-600'}`}>
                     {nodeInfo.status.toUpperCase()}
                 </span>
             </p>
@@ -56,6 +57,9 @@ export function DetailsPanel({ nodeInfo }) {
                     <p className="text-gray-400 italic text-xs">Sin cables conectados.</p>
                 )}
             </div>
+            {nodeInfo.type?.toLowerCase() === 'router' && (
+                <CgroupsPanel nodeInfo={nodeInfo} />
+            )}
         </div>
     );
 }

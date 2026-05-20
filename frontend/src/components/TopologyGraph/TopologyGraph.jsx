@@ -23,14 +23,14 @@ export function TopologyGraph({ onNodeSelect }) {
             const options = {
                 physics: {
                     barnesHut: {
-                        springLength: 150,         // Un poco más de aire entre nodos
+                        springLength: 200,
                         centralGravity: 0.0,
-                        gravitationalConstant: -2500, // Mayor repulsión para que no se pisen al crear varios
-                        springConstant: 0.15,      // ⚖️ Tensión media: ni chicle ni acero.
-                        damping: 0.4               // ⚖️ Amortiguación suave: permite un micro-rebote natural al soltar
+                        gravitationalConstant: -2500,
+                        springConstant: 0.15,
+                        damping: 0.4
                     },
                     solver: 'barnesHut',
-                    maxVelocity: 40,               // ⚖️ Bajamos la velocidad máxima. Siguen al ratón bien, pero sin teletransportarse robóticamente
+                    maxVelocity: 40,
                     minVelocity: 0.75,
                     stabilization: {
                         enabled: true,
@@ -70,7 +70,6 @@ export function TopologyGraph({ onNodeSelect }) {
             });
         }
 
-        // 🧹 REFACTOR: Cleanup para evitar memory leaks si el componente se desmonta
         return () => {
             if (networkRef.current) {
                 networkRef.current.destroy();

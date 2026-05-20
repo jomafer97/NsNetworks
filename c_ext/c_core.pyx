@@ -1,8 +1,8 @@
-cdef extern from "core_namespaces.h":
-    int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *netns_name, char* command)
+cdef extern from "core_logic.h":
+    int start_node(char *node_name, char *lower_dir, char *upper_dir, char *work_dir, char *merged_dir, char *netns_name, char *command, char *cgroup_path)
 
 # 2. Creamos la función que Python llamará
-def create_container(node_name: str, lower_dir: str, upper_dir: str, work_dir: str, merged_dir: str, netns_name: str, command: str) -> int:
+def create_container(node_name: str, lower_dir: str, upper_dir: str, work_dir: str, merged_dir: str, netns_name: str, command: str, cgroup_path: str) -> int:
     """
     Wrapper para instanciar el contenedor desde C.
     Convierte los strings de Python a bytes para que C los interprete como char*.
@@ -16,6 +16,7 @@ def create_container(node_name: str, lower_dir: str, upper_dir: str, work_dir: s
     cdef bytes b_merged_dir = merged_dir.encode('utf-8')
     cdef bytes b_netns = netns_name.encode('utf-8')
     cdef bytes b_command = command.encode('utf-8')
+    cdef bytes b_cgroup_path = cgroup_path.encode('utf-8')
 
     # Llamada nativa a la función en C
     cdef int child_pid = start_node(
@@ -25,7 +26,8 @@ def create_container(node_name: str, lower_dir: str, upper_dir: str, work_dir: s
         b_work_dir,
         b_merged_dir,
         b_netns,
-        b_command
+        b_command,
+        b_cgroup_path
     )
 
     return child_pid

@@ -39,5 +39,10 @@ export const TfgService = {
     setAddr: async (node_name, iface_name, addr, mask) => {
         const response = await ApiClient.post(`/nodes/${node_name}/interfaces/${iface_name}/ip`, { addr, mask });
         return response.data;
+    },
+
+    setCgroups: async (node_name, cgroupsData) => {
+        const response = await ApiClient.post(`/nodes/${node_name}/cgroups`, cgroupsData);
+        return response.data;
     }
 }

@@ -1,5 +1,5 @@
 import { useContext, useState } from "react"
-import { TopologyContext } from "../../context/TopologyContext"
+import { TopologyContext } from "../../../context/TopologyContext"
 
 export const IfaceCard = ({ nodeName, nodeType, ifaceName, ifaceIp }) => {
     const { configureInterfaceIp } = useContext(TopologyContext)

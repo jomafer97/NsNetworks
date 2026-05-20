@@ -17,12 +17,12 @@ class Router(IsolatedNode):
         lower_dir: str = f"{IsolatedNode.BASE_PATH}/alpine_base",
         limits: dict | None = None,
     ):
-        cmd = (
-            "chown -R frr:frr /etc/frr && "
-            "/usr/lib/frr/zebra -d -f /etc/frr/frr.conf && "
-            "/usr/lib/frr/ospfd -d -f /etc/frr/frr.conf && "
-            "tail -f /dev/null"
-        )
+        cmd = """
+chown -R frr:frr /etc/frr || exit 1
+/usr/lib/frr/zebra -f /etc/frr/frr.conf &
+/usr/lib/frr/ospfd -f /etc/frr/frr.conf &
+wait
+"""
 
         super().__init__(
             name,

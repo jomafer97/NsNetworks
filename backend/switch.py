@@ -56,3 +56,8 @@ class Switch(Node):
     def delete(self):
         print(f"[*] Destruyendo Switch {self.name}...")
         self.net_ns.cleanup()
+
+    def to_dict(self) -> dict:
+        data = super().to_dict()
+        data["status"] = "UP" if self.bridge else "DOWN"
+        return data

@@ -9,6 +9,7 @@ export function TopologyContextProvider({ children }) {
     const [isLinkingMode, setIsLinkingMode] = useState(false);
     const [isDeletingLinkMode, setIsDeletingLinkMode] = useState(false);
     const [selectedNode, setSelectedNode] = useState(null);
+    const [selectedLink, setSelectedLink] = useState(null);
     const [linkSource, setLinkSource] = useState(null);
     const nextRouterId = useRef(0)
     const nextSwitchId = useRef(0)
@@ -108,6 +109,15 @@ export function TopologyContextProvider({ children }) {
         }
     }
 
+    const setCgroups = async (nodeName, cgroupsData) => {
+        try {
+            await TfgService.setCgroups(nodeName, cgroupsData);
+            await fetchTopology();
+        } catch (error) {
+            console.error("Fallo al establecer los cgroups:", error);
+        }
+    }
+
     const toggleLinkingMode = () => {
         setIsDeletingLinkMode(false)
         setIsLinkingMode(!isLinkingMode);
@@ -132,6 +142,7 @@ export function TopologyContextProvider({ children }) {
             isLinkingMode, setIsLinkingMode, toggleLinkingMode,
             isDeletingLinkMode, setIsDeletingLinkMode, toggleDeletingLinkMode,
             selectedNode, setSelectedNode,
+            selectedLink, setSelectedLink,
             linkSource, setLinkSource,
 
             createNode,
@@ -140,6 +151,7 @@ export function TopologyContextProvider({ children }) {
             createLink,
             deleteLink,
             configureInterfaceIp,
+            setCgroups,
             fetchTopology
         }}>
             {children}
