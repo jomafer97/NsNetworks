@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-import threading
+import threading, asyncio
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -18,7 +18,6 @@ def start_net():
     current_topology = Topology("API-Core")
 
 
-# --- EL CONTROLADOR DE CICLO DE VIDA ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     net_thread = threading.Thread(target=start_net, daemon=True)
@@ -28,7 +27,8 @@ async def lifespan(app: FastAPI):
 
     if current_topology:
         print("\n[*] Apagando servidor, destruyendo topología...")
-        current_topology.delete_all()
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, current_topology.delete_all)
 
 
 app = FastAPI(title="Topology API", version="1.0", lifespan=lifespan)
@@ -67,6 +67,24 @@ def get_network_state():
     if not current_topology:
         raise HTTPException(status_code=503, detail="El motor no está inicializado")
     return current_topology.export_to_json("topology.json")
+
+
+@app.delete("/api/v1/network", tags=["Network"])
+def delete_all():
+    """Elimina la topología actual"""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="La red no está inicializada")
+
+    try:
+        current_topology.delete_all()
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error del servidor al eliminar la topología: {str(e)}",
+        )
 
 
 @app.post("/api/v1/nodes", status_code=status.HTTP_201_CREATED, tags=["Nodes"])

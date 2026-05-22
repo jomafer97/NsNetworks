@@ -8,12 +8,12 @@ import { DeleteLinkButton } from "./DeleteLinkButton";
 export const ControlPanel = () => {
     return (
         <div className="flex flex-col h-full">
-            <h3 className="font-bold text-lg mb-6 text-gray-800 border-b pb-2">
+            <h3 className="font-bold text-lg mb-6 text-white border-b pb-2">
                 Panel de Control
             </h3>
 
             <div className="mb-6">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">
                     Paleta de Dispositivos
                 </h4>
 
@@ -24,7 +24,7 @@ export const ControlPanel = () => {
             </div>
 
             <div>
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3">
                     Gestión de Enlaces
                 </h4>
 

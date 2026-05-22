@@ -117,6 +117,6 @@ export function TopologyGraph({ onNodeSelect }) {
     }, [nodes, links]);
 
     return (
-        <div ref={containerRef} className="w-full h-full outline-none bg-white"></div>
+        <div ref={containerRef} className="w-full h-full outline-none bg-mauve-400"></div>
     );
 }

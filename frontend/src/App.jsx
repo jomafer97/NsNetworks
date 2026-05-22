@@ -98,7 +98,7 @@ function App() {
       <div className="flex flex-1 gap-6 w-full px-6 pb-6 min-h-0 min-w-0">
 
         {/* 1. PANEL LATERAL IZQUIERDO (Herramientas) */}
-        <div className="w-1/6 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto p-4 relative z-10">
+        <div className="w-1/6 shrink-0 bg-mauve-600 shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto p-4 relative z-10">
           <ControlPanel />
         </div>
 
@@ -112,7 +112,7 @@ function App() {
         </div>
 
         {/* 3. PANEL LATERAL DERECHO */}
-        <div className="w-1/5 shrink-0 bg-white shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto relative z-10">
+        <div className="w-1/5 shrink-0 bg-mauve-600 shadow-lg border border-gray-200 rounded-lg h-full overflow-y-auto relative z-10">
           <InspectorPanel />
         </div>
 

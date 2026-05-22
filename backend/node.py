@@ -1,5 +1,5 @@
 import os, shutil, signal, abc, subprocess
-import c_core
+import c_core, time
 from .network_namespace import NetworkNamespace
 from .iface import Iface
 
@@ -150,6 +150,9 @@ class IsolatedNode(Node):
                     with open(path, "w") as f:
                         f.write("max")
 
+    def get_pid(self):
+        return self.pid
+
     def start(self):
         """Inicia el entorno de la siguiente forma:
         - Crea los directorios de OverlayFS y Cgroups
@@ -169,6 +172,8 @@ class IsolatedNode(Node):
             command=self.command,
             cgroup_path=self.cgroup_path,
         )
+
+        time.sleep(0.5)
 
         if self.pid == -1:
             raise RuntimeError(f"Fallo crítico al levantar el nodo {self.name} en C")

@@ -1,10 +1,9 @@
+import subprocess
 from pyroute2 import IPRoute
 
 
 class Iface:
-    """
-    Ofrece una capa de abstracción sobre las interfaces del kernel
-    """
+    """Ofrece una capa de abstracción sobre las interfaces del kernel"""
 
     def __init__(self, name: str):
         self.name = name
@@ -15,117 +14,158 @@ class Iface:
         self.state = "down"
 
     def _get_handle(self):
-        """
-        Devuelve una tupla: (handler, should_close).
-        Si usa el puntero del netns, prohibimos el cierre (False).
-        Si crea uno efímero en el host, obligamos a cerrarlo (True).
-        """
-        if self.net_ns and hasattr(self.net_ns, "get_ipr"):
-            return self.net_ns.get_ipr(), False
-
+        """Devuelve una referencia a IPRoute"""
         return IPRoute(), True
 
     def get_index(self, ipr=None):
-        """Obtiene y cachea el índice numérico de la interfaz en el kernel."""
+        """Obtiene y cachea el índice numérico de la interfaz en el host."""
+        if self.net_ns:
+            return None
+
         if not self.idx:
             close_ipr = False
             if ipr is None:
                 ipr, close_ipr = self._get_handle()
-
             try:
-                lookup_result = ipr.link_lookup(ifname=self.name)
-                if not lookup_result:
-                    raise RuntimeError(f"La interfaz '{self.name}' no existe.")
-                self.idx = lookup_result[0]
+                res = ipr.link_lookup(ifname=self.name)
+                if res:
+                    self.idx = res[0]
             finally:
                 if close_ipr and ipr:
                     ipr.close()
-
         return self.idx
 
     def is_up(self, ipr=None) -> bool:
         """Devuelve True si está UP, False si está DOWN."""
+        if self.net_ns:
+            res = subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    self.net_ns.get_name(),
+                    "ip",
+                    "link",
+                    "show",
+                    self.name,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            return ",UP" in res.stdout or "state UP" in res.stdout
+
         close_ipr = False
         if ipr is None:
             ipr, close_ipr = self._get_handle()
-
         try:
             current_idx = self.get_index(ipr=ipr)
-            link_info = ipr.get_links(current_idx)
-
-            if not link_info:
-                raise RuntimeError(
-                    f"No se pudo obtener info de la interfaz {self.name}"
-                )
-
-            flags = link_info[0]["flags"]
-            return bool(flags & 1)
-
-        except Exception as e:
-            print(f"Error consultando el estado de la interfaz '{self.name}': {e}")
-            raise
+            if not current_idx:
+                return False
+            info = ipr.get_links(current_idx)
+            return bool(info[0]["flags"] & 1) if info else False
         finally:
             if close_ipr and ipr:
                 ipr.close()
 
     def up(self, ipr=None):
-        """Levanta la interfaz si el kernel indica que está apagada."""
-        close_ipr = False
-        if ipr is None:
-            ipr, close_ipr = self._get_handle()
-
-        try:
-            if not self.is_up(ipr=ipr):
-                current_idx = self.get_index(ipr=ipr)
-                ipr.link("set", index=current_idx, state="up")
+        """Levanta la interfaz."""
+        if self.net_ns:
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    self.net_ns.get_name(),
+                    "ip",
+                    "link",
+                    "set",
+                    self.name,
+                    "up",
+                ],
+                check=True,
+            )
             self.state = "up"
-        except Exception as e:
-            print(f"Error al levantar la interfaz '{self.name}': {e}")
-            raise
-        finally:
-            if close_ipr and ipr:
-                ipr.close()
-
-    def set_addr(self, addr: str, mask: int, ipr=None):
-        close_ipr = False
-        if ipr is None:
-            ipr, close_ipr = self._get_handle()
-
-        if self.addr:
-            self.delete_addr(ipr=ipr)
-
-        try:
-            current_idx = self.get_index(ipr=ipr)
-            ipr.addr("add", index=current_idx, address=addr, mask=mask)
-            self.addr = addr
-            self.mask = mask
-        except Exception as e:
-            print(f"Error al establecer IP en interfaz: {e}")
-            raise
-        finally:
-            if close_ipr and ipr:
-                ipr.close()
-
-    def delete_addr(self, ipr=None):
-        """
-        Elimina la IP actual de la interfaz tanto en el kernel de Linux
-        como en la memoria interna de Python.
-        """
-        if not self.addr or not self.mask:
             return
 
         close_ipr = False
         if ipr is None:
             ipr, close_ipr = self._get_handle()
+        try:
+            current_idx = self.get_index(ipr=ipr)
+            ipr.link("set", index=current_idx, state="up")
+            self.state = "up"
+        finally:
+            if close_ipr and ipr:
+                ipr.close()
 
+    def set_addr(self, addr: str, mask: int, ipr=None):
+        if self.addr:
+            self.delete_addr(ipr=ipr)
+
+        if self.net_ns:
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    self.net_ns.get_name(),
+                    "ip",
+                    "addr",
+                    "add",
+                    f"{addr}/{mask}",
+                    "dev",
+                    self.name,
+                ],
+                check=True,
+            )
+            self.addr = addr
+            self.mask = mask
+            return
+
+        close_ipr = False
+        if ipr is None:
+            ipr, close_ipr = self._get_handle()
+        try:
+            current_idx = self.get_index(ipr=ipr)
+            ipr.addr("add", index=current_idx, address=addr, mask=mask)
+            self.addr = addr
+            self.mask = mask
+        finally:
+            if close_ipr and ipr:
+                ipr.close()
+
+    def delete_addr(self, ipr=None):
+        if not self.addr or not self.mask:
+            return
+
+        if self.net_ns:
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    self.net_ns.get_name(),
+                    "ip",
+                    "addr",
+                    "del",
+                    f"{self.addr}/{self.mask}",
+                    "dev",
+                    self.name,
+                ],
+                check=False,
+            )
+            self.addr = None
+            self.mask = None
+            return
+
+        close_ipr = False
+        if ipr is None:
+            ipr, close_ipr = self._get_handle()
         try:
             current_idx = self.get_index(ipr=ipr)
             ipr.addr("delete", index=current_idx, address=self.addr, mask=self.mask)
             self.addr = None
             self.mask = None
-        except Exception as e:
-            print(f"Error al eliminar IP en interfaz {self.name}: {e}")
-            raise
         finally:
             if close_ipr and ipr:
                 ipr.close()
@@ -140,37 +180,49 @@ class Iface:
         ipr, close_ipr = self._get_handle()
 
         try:
-            if ipr:
-                current_idx = self.get_index(ipr=ipr)
-                ipr.link("set", index=current_idx, net_ns_fd=target_net_ns.get_name())
-                self.net_ns = target_net_ns
-                self.idx = None
-                self.state = "down"
-                self.addr = None
-                self.mask = None
-        except Exception as e:
-            print(f"Error al mover la interfaz: {e}")
-            raise
+            current_idx = self.get_index(ipr=ipr)
+            ipr.link("set", index=current_idx, net_ns_fd=target_net_ns.get_name())
+            self.net_ns = target_net_ns
+            self.idx = None
+            self.state = "down"
+            self.addr = None
+            self.mask = None
         finally:
             if close_ipr and ipr:
                 ipr.close()
 
     def delete(self, ipr=None):
-        """Elimina la interfaz del sistema."""
-        close_ipr = False
-        if ipr is None:
-            ipr, close_ipr = self._get_handle()
-
-        try:
-            current_idx = self.get_index(ipr=ipr)
-            ipr.link("del", index=current_idx)
-
+        if self.net_ns:
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    self.net_ns.get_name(),
+                    "ip",
+                    "link",
+                    "del",
+                    self.name,
+                ],
+                check=False,
+            )
             self.idx = None
             self.state = "down"
             self.net_ns = None
             self.addr = None
-        except Exception as e:
-            print(f"Error al eliminar la interfaz: {e}")
+            return
+
+        close_ipr = False
+        if ipr is None:
+            ipr, close_ipr = self._get_handle()
+        try:
+            current_idx = self.get_index(ipr=ipr)
+            if current_idx:
+                ipr.link("del", index=current_idx)
+            self.idx = None
+            self.state = "down"
+            self.net_ns = None
+            self.addr = None
         finally:
             if close_ipr and ipr:
                 ipr.close()

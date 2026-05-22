@@ -7,8 +7,8 @@ export const InspectorPanel = () => {
     const { selectedNode, selectedLink } = useContext(TopologyContext)
 
     const Wrapper = ({ children }) => (
-        <div className="p-4 bg-white rounded-lg border border-gray-200 h-full shadow-sm flex flex-col">
-            <h3 className="text-lg font-semibold border-b border-gray-100 pb-2 mb-4 text-gray-800">
+        <div className="p-4 rounded-lg border border-gray-200 h-full shadow-sm flex flex-col">
+            <h3 className="text-lg font-semibold border-b border-gray-100 pb-2 mb-4 text-white">
                 Gestión y Monitorización
             </h3>
             {children}
@@ -25,9 +25,9 @@ export const InspectorPanel = () => {
 
     return (
         <Wrapper>
-            <p className="text-gray-500 text-sm text-center mt-8">
+            <p className="text-white text-sm text-center mt-8">
                 Haz clic sobre un recurso en el mapa topológico para inspeccionarlo y controlarlo.
             </p>
-        </Wrapper>
+        </Wrapper >
     )
 }

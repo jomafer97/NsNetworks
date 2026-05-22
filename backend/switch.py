@@ -1,3 +1,4 @@
+import subprocess
 from .iface import Iface
 from .node import Node
 
@@ -16,21 +17,53 @@ class Switch(Node):
 
     def start(self):
         """
-        Inicializa el Bridge interno.
+        Inicializa el Bridge interno mediante comandos nativos del kernel
+        para evitar bloqueos de hilos (deadlocks) en FastAPI.
         """
         if self.bridge:
             return
 
         bridge_name = "br0"
         self.bridge = Iface(bridge_name)
+        ns_name = self.net_ns.get_name()
 
-        ns = self.net_ns.get_ipr()
+        subprocess.run(
+            [
+                "ip",
+                "netns",
+                "exec",
+                ns_name,
+                "ip",
+                "link",
+                "add",
+                "name",
+                bridge_name,
+                "type",
+                "bridge",
+            ],
+            check=True,
+        )
 
-        if ns:
-            ns.link("add", ifname=bridge_name, kind="bridge")
-            ns.link("set", index=self.bridge.get_index(ipr=ns), br_stp_state=0)
-            self.bridge.net_ns = self.net_ns
-            self.bridge.up(ns)
+        subprocess.run(
+            [
+                "ip",
+                "netns",
+                "exec",
+                ns_name,
+                "ip",
+                "link",
+                "set",
+                bridge_name,
+                "type",
+                "bridge",
+                "stp_state",
+                "0",
+            ],
+            check=True,
+        )
+
+        self.bridge.net_ns = self.net_ns
+        self.bridge.up()
 
     def attach(self, iface: Iface):
         """
@@ -40,14 +73,28 @@ class Switch(Node):
         super().attach(iface)
 
         if self.bridge:
-            ns = self.net_ns.get_ipr()
-            if ns:
-                ns.link(
+            ns_name = self.net_ns.get_name()
+
+            subprocess.run(
+                [
+                    "ip",
+                    "netns",
+                    "exec",
+                    ns_name,
+                    "ip",
+                    "link",
                     "set",
-                    index=iface.get_index(ipr=ns),
-                    master=self.bridge.get_index(ipr=ns),
-                    state="up",
-                )
+                    iface.name,
+                    "master",
+                    self.bridge.name,
+                ],
+                check=True,
+            )
+
+            subprocess.run(
+                ["ip", "netns", "exec", ns_name, "ip", "link", "set", iface.name, "up"],
+                check=True,
+            )
         else:
             print(
                 f"[*] Aviso: Interfaz {iface.name} añadida, pero el bridge en {self.name} aún no está levantado."

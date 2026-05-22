@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const ApiClient = axios.create({
-    baseURL: 'http://localhost:8000/api/v1',
+    baseURL: 'http://192.168.2.100:8000/api/v1',
     timeout: 5000,
 });
 
@@ -44,5 +44,5 @@ export const TfgService = {
     setCgroups: async (node_name, cgroupsData) => {
         const response = await ApiClient.post(`/nodes/${node_name}/cgroups`, cgroupsData);
         return response.data;
-    }
+    },
 }
