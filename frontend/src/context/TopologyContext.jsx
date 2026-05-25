@@ -4,10 +4,27 @@ import { TfgService } from '../services/api';
 export const TopologyContext = createContext()
 
 export function TopologyContextProvider({ children }) {
+    const MODES = {
+        IDLE: 'IDLE',
+        DELETING_NETWORK: 'DELETING_NETWORK',
+        STARTING_NETWORK: 'STARTING_NETWORK',
+        CREATING_NODE: 'CREATING_NODE',
+        STARTING_NODE: 'STARTING_NODE',
+        DELETING_NODE: 'DELETING_NODE',
+        LINKING: 'LINKING',
+        DELETING_LINK: 'DELETING_LINK',
+        APPLYING_IP: 'APPLYING_IP',
+        APPLYING_CGROUPS: 'APPLYING_CGROUPS'
+    }
+
+    const [currentMode, setCurrentMode] = useState(MODES.IDLE);
+
+    const setMode = (newMode) => {
+        setCurrentMode(newMode);
+    };
+
     const [nodes, setNodes] = useState([]);
     const [links, setLinks] = useState([]);
-    const [isLinkingMode, setIsLinkingMode] = useState(false);
-    const [isDeletingLinkMode, setIsDeletingLinkMode] = useState(false);
     const [selectedNode, setSelectedNode] = useState(null);
     const [selectedLink, setSelectedLink] = useState(null);
     const [linkSource, setLinkSource] = useState(null);
@@ -41,9 +58,28 @@ export function TopologyContextProvider({ children }) {
         }
     }, []);
 
+    const deleteAll = async () => {
+        try {
+            await TfgService.deleteAll()
+            await fetchTopology()
+        } catch (error) {
+            console.error("Error al eliminar la red:", error)
+            throw error;
+        }
+    };
+
+    const startAll = async () => {
+        try {
+            await TfgService.startAll()
+            await fetchTopology()
+        } catch (error) {
+            console.error("Error al inicializar la red:", error)
+            throw error;
+        }
+    };
+
     const createNode = async (type) => {
         let name = ""
-
         switch (type) {
             case "router":
                 name = `r${nextRouterId.current}`
@@ -61,6 +97,7 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology()
         } catch (error) {
             console.error("Error al crear el nodo:", error)
+            throw error;
         }
     }
 
@@ -70,6 +107,7 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology()
         } catch (error) {
             console.error("Error al iniciar el nodo:", error)
+            throw error;
         }
     }
 
@@ -79,6 +117,7 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology()
         } catch (error) {
             console.error("Error al eliminar el nodo:", error)
+            throw error;
         }
     }
 
@@ -88,6 +127,7 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology()
         } catch (error) {
             console.error("Error al crear el link:", error)
+            throw error;
         }
     }
 
@@ -97,6 +137,7 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology()
         } catch (error) {
             console.error("Error al eliminar el link:", error)
+            throw error;
         }
     }
 
@@ -106,6 +147,7 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology();
         } catch (error) {
             console.error("Fallo al sincronizar la IP con el controlador:", error);
+            throw error;
         }
     }
 
@@ -115,20 +157,63 @@ export function TopologyContextProvider({ children }) {
             await fetchTopology();
         } catch (error) {
             console.error("Fallo al establecer los cgroups:", error);
+            throw error;
         }
     }
 
-    const toggleLinkingMode = () => {
-        setIsDeletingLinkMode(false)
-        setIsLinkingMode(!isLinkingMode);
-        setLinkSource(null);
-    };
+    const setRunningConfig = async (nodeName, config) => {
+        try {
+            await TfgService.setRunningConfig(nodeName, config);
+        } catch (error) {
+            console.error("Fallo al establecer la configuración:", error);
+            throw error;
+        }
+    }
 
-    const toggleDeletingLinkMode = () => {
-        setIsLinkingMode(false)
-        setIsDeletingLinkMode(!isDeletingLinkMode);
-        setLinkSource(null);
-    };
+    const getRunningConfig = async (name) => {
+        try {
+            return await TfgService.getRunningConfig(name); // 🟢 Return añadido
+        } catch (error) {
+            console.error("Fallo al obtener la configuración del nodo:", error);
+            throw error;
+        }
+    }
+
+    const getRoutingTable = async (name) => {
+        try {
+            return await TfgService.getRoutingTable(name);
+        } catch (error) {
+            console.error("Fallo al obtener la tabla de enrutamiento del nodo:", error);
+            throw error;
+        }
+    }
+
+    const getOspfInterfaces = async (name) => {
+        try {
+            return await TfgService.getOspfInterfaces(name);
+        } catch (error) {
+            console.error("Fallo al obtener las interfaces OSPF del nodo:", error);
+            throw error;
+        }
+    }
+
+    const getOspfNeighbors = async (name) => {
+        try {
+            return await TfgService.getOspfNeighbors(name);
+        } catch (error) {
+            console.error("Fallo al obtener los vecinos OSPF del nodo:", error);
+            throw error;
+        }
+    }
+
+    const getOspfBorderRouters = async (name) => {
+        try {
+            return await TfgService.getOspfBorderRouters(name);
+        } catch (error) {
+            console.error("Fallo al obtener los routers frontera OSPF del nodo:", error);
+            throw error;
+        }
+    }
 
     useEffect(() => {
         fetchTopology();
@@ -139,8 +224,7 @@ export function TopologyContextProvider({ children }) {
             nodes, setNodes,
             links, setLinks,
 
-            isLinkingMode, setIsLinkingMode, toggleLinkingMode,
-            isDeletingLinkMode, setIsDeletingLinkMode, toggleDeletingLinkMode,
+            currentMode, setMode, MODES,
             selectedNode, setSelectedNode,
             selectedLink, setSelectedLink,
             linkSource, setLinkSource,
@@ -152,7 +236,16 @@ export function TopologyContextProvider({ children }) {
             deleteLink,
             configureInterfaceIp,
             setCgroups,
-            fetchTopology
+            deleteAll,
+            startAll,
+            setRunningConfig,
+            fetchTopology,
+
+            getRunningConfig,
+            getRoutingTable,
+            getOspfInterfaces,
+            getOspfNeighbors,
+            getOspfBorderRouters
         }}>
             {children}
         </TopologyContext.Provider>

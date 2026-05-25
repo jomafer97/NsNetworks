@@ -1,7 +1,9 @@
-import { useEffect, useRef, useContext } from 'react';
+import { useEffect, useRef, useContext, useState } from 'react';
 import { TopologyContext } from '../../context/TopologyContext';
 import { Network } from 'vis-network';
 import { DataSet } from 'vis-data';
+import { ContextMenu } from '../ContextDetails/ContextMenu';
+import { Modal } from '../ContextDetails/Modal';
 
 export function TopologyGraph({ onNodeSelect }) {
     const { nodes, links } = useContext(TopologyContext);
@@ -13,6 +15,20 @@ export function TopologyGraph({ onNodeSelect }) {
     const linksDataSet = useRef(new DataSet([]));
 
     const onNodeSelectRef = useRef(onNodeSelect);
+
+    const [contextMenu, setContextMenu] = useState({
+        show: false,
+        x: 0,
+        y: 0,
+        node: null
+    });
+
+    const [modalState, setModalState] = useState({
+        isOpen: false,
+        title: '',
+        content: null,
+        isLoading: false
+    });
 
     useEffect(() => {
         onNodeSelectRef.current = onNodeSelect;
@@ -52,6 +68,8 @@ export function TopologyGraph({ onNodeSelect }) {
             );
 
             networkRef.current.on('click', (params) => {
+                setContextMenu(prev => ({ ...prev, show: false }));
+
                 let clickedNode = null;
                 let clickedEdgeId = null;
 
@@ -69,6 +87,31 @@ export function TopologyGraph({ onNodeSelect }) {
                 });
             });
         }
+
+        networkRef.current.on('oncontext', (params) => {
+            params.event.preventDefault();
+
+            const nodeId = networkRef.current.getNodeAt(params.pointer.DOM);
+
+            if (nodeId) {
+                const clickedNode = nodesDataSet.current.get(nodeId)?.rawData;
+
+                if (clickedNode) {
+                    setContextMenu({
+                        show: true,
+                        x: params.event.clientX,
+                        y: params.event.clientY,
+                        node: clickedNode
+                    });
+                }
+            } else {
+                setContextMenu(prev => ({ ...prev, show: false }));
+            }
+        });
+
+        networkRef.current.on('dragStart', () => {
+            setContextMenu(prev => ({ ...prev, show: false }));
+        });
 
         return () => {
             if (networkRef.current) {
@@ -117,6 +160,13 @@ export function TopologyGraph({ onNodeSelect }) {
     }, [nodes, links]);
 
     return (
-        <div ref={containerRef} className="w-full h-full outline-none bg-mauve-400"></div>
+        <div ref={containerRef} className="w-full h-full outline-none bg-mauve-400">
+            {contextMenu.show && contextMenu.node && (
+                <ContextMenu contextMenu={contextMenu} setContextMenu={setContextMenu} setModalState={setModalState} />
+            )}
+            {modalState.isOpen && (
+                <Modal modalState={modalState} setModalState={setModalState} />
+            )}
+        </div>
     );
 }

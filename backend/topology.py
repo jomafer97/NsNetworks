@@ -25,6 +25,9 @@ class Topology:
         print(f"[*] Nodo añadido a la topología: {node.name}")
         return node
 
+    def get_node(self, node_name):
+        return self.nodes.get(node_name)
+
     def add_link(self, node1_name: str, node2_name: str):
         """
         Conecta dos nodos existentes en la topología.
@@ -53,7 +56,8 @@ class Topology:
     def start_node(self, node_name: str):
         """Inicializa un nodo específico"""
         if node_name in self.nodes:
-            self.nodes[node_name].start()
+            return self.nodes[node_name].start()
+        return None
 
     def delete_node(self, node_name: str):
         """Detiene un nodo específico"""
@@ -73,13 +77,15 @@ class Topology:
             node.delete()
 
     def start_all(self):
-        """Orquesta el arranque secuencial de toda la infraestructura."""
-        print(f"\n[>>>] Iniciando topología: {self.name} [>>>]")
+        """Inicia todos los nodos de la topología"""
+        created_pids = []
 
         for node in self.nodes.values():
-            node.start()
+            pid = node.start()
+            if pid:
+                created_pids.append(pid)
 
-        print(f"[>>>] Topología {self.name} operativa.\n")
+        return created_pids
 
     def delete_all(self):
         """Orquesta la destrucción limpia de la infraestructura."""
@@ -90,6 +96,9 @@ class Topology:
 
         for node in self.nodes.values():
             node.delete()
+
+        self.nodes.clear()
+        self.links.clear()
 
         print(f"[<<<] Topología {self.name} eliminada por completo.\n")
 

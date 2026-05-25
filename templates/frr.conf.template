@@ -6,7 +6,6 @@ no ipv6 forwarding
 !
 router ospf
  ospf router-id {router_id}
- redistribute connected
  network 0.0.0.0/0 area 0.0.0.0
 !
 line vty

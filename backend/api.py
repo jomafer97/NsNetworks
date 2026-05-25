@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-import threading, asyncio
+import threading, asyncio, signal, os
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,6 +11,34 @@ from .switch import Switch
 
 current_topology = None
 
+active_node_pids = set()
+
+
+async def zombie_reaper_task():
+    """
+    Tarea en segundo plano que recolecta los procesos huérfanos (zombis).
+    Gracias a que el contenedor en C emite SIGCHLD, waitpid estándar es suficiente.
+    """
+    while True:
+        for pid in list(active_node_pids):
+            try:
+                zombie_pid, status = os.waitpid(pid, os.WNOHANG)
+
+                if zombie_pid == pid:
+                    print(
+                        f"[*] Nodo (PID {pid}) enterrado limpiamente (Status: {status})"
+                    )
+                    active_node_pids.remove(pid)
+
+            except ChildProcessError:
+                active_node_pids.remove(pid)
+            except ProcessLookupError:
+                active_node_pids.remove(pid)
+            except Exception as e:
+                print(f"[!] Error inesperado revisando PID {pid}: {e}")
+
+        await asyncio.sleep(2)
+
 
 def start_net():
     """Inicia la topología"""
@@ -20,10 +48,19 @@ def start_net():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    reaper = asyncio.create_task(zombie_reaper_task())
+
     net_thread = threading.Thread(target=start_net, daemon=True)
     net_thread.start()
 
     yield
+
+    reaper.cancel()
+
+    try:
+        await reaper
+    except asyncio.CancelledError:
+        pass
 
     if current_topology:
         print("\n[*] Apagando servidor, destruyendo topología...")
@@ -61,6 +98,10 @@ class IPAssignment(BaseModel):
     mask: int
 
 
+class ConfigUpdate(BaseModel):
+    config: str
+
+
 @app.get("/api/v1/network", tags=["Network"])
 def get_network_state():
     """Devuelve el estado completo del grafo (Nodos y Enlaces)."""
@@ -87,9 +128,26 @@ def delete_all():
         )
 
 
+@app.post("/api/v1/network/start", status_code=status.HTTP_200_OK, tags=["Network"])
+def start_all():
+    """Inicializa todos los routers"""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="El motor no está inicializado")
+
+    try:
+        pids = current_topology.start_all()
+        if pids:
+            active_node_pids.update(pids)
+        return {"message": f"Todos los routers inicializados exitosamente."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/v1/nodes", status_code=status.HTTP_201_CREATED, tags=["Nodes"])
 def create_node(node: NodeCreate):
     """Instancia un nuevo nodo en el kernel y lo conecta al switch principal."""
+    global current_topology
     if not current_topology:
         raise HTTPException(status_code=503, detail="El motor no está inicializado")
 
@@ -130,7 +188,9 @@ def start_node(node_name: str):
         raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
 
     try:
-        current_topology.start_node(node_name)
+        pid = current_topology.start_node(node_name)
+        if pid:
+            active_node_pids.add(pid)
         return {"message": f"Nodo {node_name} arrancado."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -209,7 +269,7 @@ def set_addr(node_name: str, iface_name: str, data: IPAssignment):
         raise HTTPException(
             status_code=404, detail="La red no se encuentra inicializada"
         )
-    node = current_topology.nodes.get(node_name)
+    node = current_topology.get_node(node_name)
     if not node:
         raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
 
@@ -239,7 +299,7 @@ def set_cgroups(node_name: str, data: CgroupAssignment):
             status_code=404, detail="La red no se encuentra inicializada"
         )
 
-    node = current_topology.nodes.get(node_name)
+    node = current_topology.get_node(node_name)
 
     if not node:
         raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
@@ -263,5 +323,100 @@ def set_cgroups(node_name: str, data: CgroupAssignment):
     try:
         node.set_cgroups(limits)
         return {"message": "Cgroups configurados con éxito"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/nodes/{node_name}/ospf/neighbors", tags=["OSPF"])
+def get_ospf_neighbors(node_name: str):
+    """Devuelve la tabla de vecinos OSPF del nodo."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+
+    if not isinstance(node, Router):
+        raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
+
+    return node.get_ospf_neighbors()
+
+
+@app.get("/api/v1/nodes/{node_name}/ospf/interfaces", tags=["OSPF"])
+def get_ospf_interfaces(node_name: str):
+    """Devuelve la tabla de interfaces OSPF del nodo."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+
+    if not isinstance(node, Router):
+        raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
+
+    return node.get_ospf_interfaces()
+
+
+@app.get("/api/v1/nodes/{node_name}/routing_table", tags=["OSPF"])
+def get_routing_table(node_name: str):
+    """Devuelve la tabla de enrutamiento del nodo."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+
+    if not isinstance(node, Router):
+        raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
+
+    return node.get_routing_table()
+
+
+@app.get("/api/v1/nodes/{node_name}/ospf/border-routers", tags=["OSPF"])
+def get_ospf_border_routers(node_name: str):
+    """Devuelve la tabla de routers de borde OSPF del nodo."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+
+    if not isinstance(node, Router):
+        raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
+
+    return node.get_ospf_border_routers()
+
+
+@app.get("/api/v1/nodes/{node_name}/config", tags=["Config"])
+def get_running_config(node_name: str):
+    """Devuelve el archivo running-config del router en texto plano."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+
+    if not isinstance(node, Router):
+        raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
+
+    config_text = node.get_running_config()
+    return {"config": config_text}
+
+
+@app.post("/api/v1/nodes/{node_name}/config", tags=["Config"])
+def set_running_config(node_name: str, data: ConfigUpdate):
+    """Sobrescribe el archivo running-config del router y recarga el demonio."""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+
+    if not isinstance(node, Router):
+        raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
+
+    try:
+        output = node.set_running_config(data.config)
+        return {"message": f"Configuración establecida con éxito: {output}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

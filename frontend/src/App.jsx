@@ -6,17 +6,16 @@ import { ControlPanel } from './components/ControlPanel/ControlPanel';
 import { InspectorPanel } from './components/NodeDetails/InspectorPanel';
 
 function App() {
-  // Extraemos TODO el estado global desde nuestro Contexto
+
   const {
-    isLinkingMode, setIsLinkingMode,
-    isDeletingLinkMode, setIsDeletingLinkMode,
+    currentMode, MODES,
     linkSource, setLinkSource,
     setSelectedNode, setSelectedLink,
     createLink, deleteLink
   } = useContext(TopologyContext);
 
   const handleGraphClick = async ({ node, edge }) => {
-    if (!isLinkingMode && !isDeletingLinkMode) {
+    if (currentMode === MODES.IDLE) {
       if (node) {
         setSelectedNode(node);
         setSelectedLink(null);
@@ -30,19 +29,19 @@ function App() {
       return;
     }
 
-    if (isDeletingLinkMode) {
+    if (currentMode === MODES.DELETING_LINK) {
       if (edge) {
-        await deleteLink(edge);
-        setIsDeletingLinkMode(false);
-      } else if (!node) {
-        setIsDeletingLinkMode(false);
+        try {
+          await deleteLink(edge);
+        } catch (e) {
+          alert(`Fallo al eliminar el enlace: ${e}`);
+        }
       }
       return;
     }
 
-    if (isLinkingMode) {
+    if (currentMode === MODES.LINKING) {
       if (!node) {
-        setIsLinkingMode(false);
         setLinkSource(null);
         return;
       }
@@ -51,10 +50,13 @@ function App() {
         setLinkSource(node.name);
       } else {
         if (linkSource !== node.name) {
-          await createLink(linkSource, node.name);
+          try {
+            await createLink(linkSource, node.name);
+          } catch (e) {
+            alert(`Fallo al crear el enlace: ${e}`);
+          }
         }
         setLinkSource(null);
-        setIsLinkingMode(false);
       }
     }
   };
@@ -70,7 +72,7 @@ function App() {
       </div>
 
       {/* BANNER DE AVISO: MODO CONEXIÓN */}
-      {isLinkingMode && (
+      {currentMode === MODES.LINKING && (
         <div className="w-full mb-4 px-6 shrink-0">
           <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded shadow-sm animate-pulse">
             <p className="font-semibold">
@@ -84,7 +86,7 @@ function App() {
       )}
 
       {/* BANNER DE AVISO: MODO BORRAR */}
-      {isDeletingLinkMode && (
+      {currentMode === MODES.DELETING_LINK && (
         <div className="w-full mb-4 px-6 shrink-0">
           <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm animate-pulse">
             <p className="font-semibold">
@@ -103,8 +105,8 @@ function App() {
         </div>
 
         {/* 2. LIENZO DE TOPOLOGÍA (Centro) */}
-        <div className={`flex-1 bg-white rounded-lg border shadow-sm relative min-h-0 min-w-0 ${isLinkingMode ? 'border-blue-400 ring-2 ring-blue-100 cursor-crosshair' :
-          isDeletingLinkMode ? 'border-red-400 ring-2 ring-red-100 cursor-crosshair' : 'border-gray-200'
+        <div className={`flex-1 bg-white rounded-lg border shadow-sm relative min-h-0 min-w-0 ${currentMode === MODES.LINKING ? 'border-blue-400 ring-2 ring-blue-100 cursor-crosshair' :
+          currentMode === MODES.DELETING_LINK ? 'border-red-400 ring-2 ring-red-100 cursor-crosshair' : 'border-gray-200'
           }`}>
           <div className="absolute inset-0 overflow-hidden rounded-lg">
             <TopologyGraph onNodeSelect={handleGraphClick} />

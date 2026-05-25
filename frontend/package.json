@@ -16,6 +16,7 @@
     "axios": "^1.16.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-draggable": "^4.5.0",
     "tailwindcss": "^4.3.0",
     "vis-data": "^8.0.4",
     "vis-network": "^10.1.0"

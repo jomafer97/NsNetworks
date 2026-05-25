@@ -1,3 +1,6 @@
+import { useContext } from "react"
+import { TopologyContext } from "../../../context/TopologyContext"
+
 export const CgroupCard = ({
     name,
     input,
@@ -7,8 +10,9 @@ export const CgroupCard = ({
     max = "100",
     step = "1",
     unit = "%",
-    isSaving
 }) => {
+    const { currentMode, MODES } = useContext(TopologyContext)
+
     return (
         <div className="flex flex-col gap-2">
             <div className="flex justify-between items-center">
@@ -21,8 +25,8 @@ export const CgroupCard = ({
                         type="checkbox"
                         checked={input !== ""}
                         onChange={(e) => toggleLimit(e.target.checked)}
-                        disabled={isSaving}
-                        className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50"
+                        disabled={currentMode !== MODES.IDLE}
+                        className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     Limitar
                 </label>
@@ -34,7 +38,7 @@ export const CgroupCard = ({
                         type="range"
                         min={min} max={max} step={step} // 👈 Parámetros dinámicos
                         value={input}
-                        disabled={isSaving}
+                        disabled={currentMode !== MODES.IDLE}
                         onChange={(e) => setInput(e.target.value)}
                         className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50"
                     />
@@ -42,11 +46,11 @@ export const CgroupCard = ({
                         <input
                             type="number" min={min} max={max}
                             value={input}
-                            disabled={isSaving}
+                            disabled={currentMode !== MODES.IDLE}
                             onChange={(e) => setInput(e.target.value)}
-                            className="w-16 border border-gray-300 rounded px-1 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono disabled:bg-gray-100"
+                            className="w-16 border border-gray-300 rounded px-1 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
-                        <span className="text-xs font-mono text-gray-500">{unit}</span> {/* 👈 Unidad dinámica */}
+                        <span className="text-xs font-mono text-gray-500">{unit}</span>
                     </div>
                 </div>
             ) : (

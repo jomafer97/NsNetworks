@@ -3,7 +3,7 @@ import { TopologyContext } from '../../../context/TopologyContext';
 import { DetailsPanel } from './DetailsPanel';
 
 export function NodePanel() {
-    const { nodes, startNode, deleteNode, selectedNode, setSelectedNode } = useContext(TopologyContext);
+    const { nodes, startNode, deleteNode, selectedNode, setSelectedNode, setMode, MODES } = useContext(TopologyContext);
 
     const [isStarting, setIsStarting] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -15,16 +15,30 @@ export function NodePanel() {
     if (!liveNodeData) return null;
 
     const handleStart = async () => {
-        setIsStarting(true);
-        await startNode(liveNodeData.name);
-        setIsStarting(false);
+        try {
+            setMode(MODES.STARTING_NODE)
+            setIsStarting(true)
+            await startNode(liveNodeData.name);
+        } catch (e) {
+            alert(`Fallo al inicializar el nodo: ${e}`);
+        } finally {
+            setMode(MODES.IDLE)
+            setIsStarting(false)
+        }
     };
 
     const handleDelete = async () => {
-        setIsDeleting(true);
-        await deleteNode(liveNodeData.name);
-        setSelectedNode(null);
-        setIsDeleting(false);
+        try {
+            setMode(MODES.DELETING_NODE)
+            setIsDeleting(true)
+            await deleteNode(liveNodeData.name);
+        } catch (e) {
+            alert(`Fallo al eliminar el nodo: ${e}`);
+        } finally {
+            setMode(MODES.IDLE)
+            setIsDeleting(false)
+            setSelectedNode(null)
+        }
     };
 
     const isBusy = isStarting || isDeleting;

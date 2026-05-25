@@ -3,12 +3,10 @@ import { TopologyContext } from "../../../context/TopologyContext"
 import { CgroupCard } from "./CgroupCard"
 
 export const CgroupsPanel = ({ nodeInfo }) => {
-    const { setCgroups } = useContext(TopologyContext)
+    const { setCgroups, currentMode, setMode, MODES } = useContext(TopologyContext)
 
     const [cpuInput, setCpuInput] = useState("")
     const [ramInput, setRamInput] = useState("")
-
-    const [isSaving, setIsSaving] = useState(false)
 
     useEffect(() => {
         setCpuInput(nodeInfo.cgroups?.cpu || "")
@@ -28,9 +26,14 @@ export const CgroupsPanel = ({ nodeInfo }) => {
             return
         }
 
-        setIsSaving(true)
-        await setCgroups(nodeInfo.name, { cpu: cpuVal, ram: ramVal })
-        setIsSaving(false)
+        try {
+            setMode(MODES.APPLYING_CGROUPS)
+            await setCgroups(nodeInfo.name, { cpu: cpuVal, ram: ramVal })
+        } catch (e) {
+            alert(`Fallo al configurar los cgroups: ${e}`);
+        } finally {
+            setMode(MODES.IDLE)
+        }
     }
 
     const toggleCpuLimit = (checked) => setCpuInput(checked ? "50" : "");
@@ -45,11 +48,13 @@ export const CgroupsPanel = ({ nodeInfo }) => {
                 </h5>
                 <button
                     onClick={handleSave}
-                    disabled={isSaving}
-                    className={`text-white px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm ${isSaving ? 'bg-blue-300 cursor-wait' : 'bg-blue-600 hover:bg-blue-700'
+                    disabled={currentMode !== MODES.IDLE}
+                    className={`text-white px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${currentMode === MODES.APPLYING_CGROUPS
+                        ? 'bg-blue-300 cursor-wait!'
+                        : 'bg-blue-600 hover:bg-blue-700'
                         }`}
                 >
-                    {isSaving ? 'Aplicando...' : 'Aplicar'}
+                    {currentMode === MODES.APPLYING_CGROUPS ? 'Aplicando...' : 'Aplicar'}
                 </button>
             </div>
 
@@ -58,7 +63,6 @@ export const CgroupsPanel = ({ nodeInfo }) => {
                 input={cpuInput}
                 setInput={setCpuInput}
                 toggleLimit={toggleCpuLimit}
-                isSaving={isSaving}
             />
 
             <div className="border-t border-gray-200 pt-3">
@@ -67,7 +71,6 @@ export const CgroupsPanel = ({ nodeInfo }) => {
                     input={ramInput}
                     setInput={setRamInput}
                     toggleLimit={toggleRamLimit}
-                    isSaving={isSaving}
                     min="16"
                     max="2048"
                     step="16"

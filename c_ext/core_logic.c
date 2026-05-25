@@ -347,34 +347,23 @@ int container_entry(void *arg) {
     int status;
 
     while (1) {
-
         pid_t pid = waitpid(-1, &status, 0);
 
         if (pid < 0) {
-
-            if (errno == EINTR)
+            if (errno == EINTR) {
                 continue;
+            }
 
-            perror("waitpid");
+            if (errno == ECHILD) {
+                sleep(1);
+                continue;
+            }
 
-            break;
+            perror("waitpid error critico");
+            sleep(1);
+            continue;
         }
 
-        /*
-        * Si murió el proceso principal:
-        * terminar contenedor
-        */
-
-        if (pid == child) {
-
-            /*
-            * Matar procesos restantes
-            */
-
-            kill(-child, SIGKILL);
-
-            break;
-        }
     }
 
     return 0;

@@ -154,12 +154,11 @@ class IsolatedNode(Node):
         return self.pid
 
     def start(self):
-        """Inicia el entorno de la siguiente forma:
-        - Crea los directorios de OverlayFS y Cgroups
-        - Invoca al motor de C para que haga el unshare y pivot_root
-        """
-        self._setup_fs()
+        """Inicia el entorno y verifica que no haya crasheado instantáneamente."""
+        if self.pid:
+            return
 
+        self._setup_fs()
         self._apply_cgroups()
 
         self.pid = c_core.create_container(
@@ -173,19 +172,38 @@ class IsolatedNode(Node):
             cgroup_path=self.cgroup_path,
         )
 
-        time.sleep(0.5)
-
         if self.pid == -1:
             raise RuntimeError(f"Fallo crítico al levantar el nodo {self.name} en C")
 
-    def exec_in_node(self, command: list[str]):
+        time.sleep(0.5)
+
+        try:
+            zombie_pid, estado = os.waitpid(self.pid, os.WNOHANG)
+
+            if zombie_pid == self.pid:
+                self.pid = None
+                self.delete()
+                raise RuntimeError(
+                    f"El nodo {self.name} crasheó al arrancar (Status: {estado})."
+                )
+
+            return self.pid
+
+        except ChildProcessError:
+            self.pid = None
+            self.delete()
+            raise RuntimeError(f"El nodo {self.name} no se pudo crear.")
+
+    def exec_in_node(self, command: list[str], input_text: str | None = None):
         """Ejecuta un comando dentro del contexto aislado del nodo"""
         if not self.pid:
             raise RuntimeError(f"El nodo {self.name} no está en ejecución.")
 
         prefix = ["nsenter", "-t", str(self.pid), "-a", "--"]
 
-        result = subprocess.run(prefix + command, capture_output=True, text=True)
+        result = subprocess.run(
+            prefix + command, capture_output=True, text=True, input=input_text
+        )
 
         stdout = result.stdout.strip()
         stderr = result.stderr.strip()

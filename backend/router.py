@@ -1,4 +1,4 @@
-import ipaddress, os
+import ipaddress, os, json
 from .node import IsolatedNode
 from pyroute2 import netns
 
@@ -19,9 +19,9 @@ class Router(IsolatedNode):
     ):
         cmd = """
 chown -R frr:frr /etc/frr || exit 1
-/usr/lib/frr/zebra -f /etc/frr/frr.conf &
-/usr/lib/frr/ospfd -f /etc/frr/frr.conf &
-wait
+sed -i 's/ospfd=no/ospfd=yes/g' /etc/frr/daemons
+/usr/lib/frr/frrinit.sh start
+tail -f /dev/null
 """
 
         super().__init__(
@@ -111,3 +111,80 @@ wait
                 Router._available_ids.append(self.router_id)
 
         super().delete()
+
+    def get_ospf_neighbors(self) -> dict:
+        """
+        Obtiene los vecinos OSPF del router en formato JSON.
+        """
+        try:
+            neighbors = self.exec_in_node(["vtysh", "-c", "show ip ospf neighbor json"])
+            return json.loads(neighbors) if neighbors else {}
+        except Exception as e:
+            print(f"Error obteniendo vecinos OSPF en {self.name}: {e}")
+            return {}
+
+    def get_ospf_interfaces(self) -> dict:
+        """
+        Obtiene las interfaces configuradas con OSPF en formato JSON
+        """
+        try:
+            interfaces = self.exec_in_node(
+                ["vtysh", "-c", "show ip ospf interface json"]
+            )
+            return json.loads(interfaces) if interfaces else {}
+        except Exception as e:
+            print(f"Error obteniendo interfaces OSPF en {self.name}: {e}")
+            return {}
+
+    def get_routing_table(self) -> dict:
+        """
+        Obtiene la tabla de rutas IP general.
+        """
+        try:
+            routing_table = self.exec_in_node(["vtysh", "-c", "show ip route json"])
+            return json.loads(routing_table) if routing_table else {}
+        except Exception as e:
+            print(f"Error obteniendo tabla de rutas en {self.name}: {e}")
+            return {}
+
+    def get_ospf_border_routers(self):
+        """Obtiene los Border Routers (ASBR/ABR) de OSPF."""
+        try:
+            border_routers = self.exec_in_node(
+                ["vtysh", "-c", "show ip ospf border-routers json"]
+            )
+            return json.loads(border_routers) if border_routers else {}
+        except Exception as e:
+            print(f"Error obteniendo border-routers en {self.name}: {e}")
+            return {}
+
+    def get_running_config(self) -> str:
+        """Obtiene la configuración actual del router en texto plano."""
+        try:
+            conf = self.exec_in_node(["vtysh", "-c", "show running-config"])
+            return conf if conf else "! Configuración vacía o router apagado"
+
+        except Exception as e:
+            print(f"Error obteniendo running-config en {self.name}: {e}")
+            return f"! Error obteniendo configuración: {e}"
+
+    def set_running_config(self, config_text: str):
+        """
+        Inyecta la configuración respetando el aislamiento y reinicia los demonios.
+        """
+        if not self.pid:
+            raise RuntimeError(
+                f"El nodo {self.name} debe estar encendido para reconfigurarlo."
+            )
+
+        self.exec_in_node(
+            ["sh", "-c", "cat > /etc/frr/frr.conf"], input_text=config_text
+        )
+        self.exec_in_node(["chown", "frr:frr", "/etc/frr/frr.conf"])
+        self.exec_in_node(["chmod", "640", "/etc/frr/frr.conf"])
+        self.exec_in_node(["sed", "-i", "s/ospfd=no/ospfd=yes/g", "/etc/frr/daemons"])
+
+        detach_cmd = "nohup /usr/lib/frr/frrinit.sh restart > /dev/null 2>&1 &"
+        self.exec_in_node(["sh", "-c", detach_cmd])
+
+        return "Configuración aplicada con éxito"
