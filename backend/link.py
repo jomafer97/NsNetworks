@@ -75,8 +75,6 @@ class Link:
     def connect(cls, node_1, node_2):
         """
         Conecta dos nodos automáticamente.
-        Pide a cada nodo su siguiente nombre disponible, instancia el cable
-        y realiza el attach delegando en los namespaces correspondientes.
         """
         name_1 = node_1.get_next_iface_name()
         name_2 = node_2.get_next_iface_name()

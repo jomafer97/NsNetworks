@@ -2,4 +2,5 @@ test*
 *.so
 *.sh
 notas.txt
+UML
 .vscode

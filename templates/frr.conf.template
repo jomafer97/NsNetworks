@@ -1,12 +1,14 @@
-frr version 8.1
+frr version 9.1
 frr defaults traditional
 hostname {router_name}
 log syslog informational
 no ipv6 forwarding
+service integrated-vtysh-config
 !
 router ospf
  ospf router-id {router_id}
  network 0.0.0.0/0 area 0.0.0.0
+exit
 !
 line vty
 !

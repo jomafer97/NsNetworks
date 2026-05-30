@@ -416,7 +416,6 @@ def set_running_config(node_name: str, data: ConfigUpdate):
         raise HTTPException(status_code=404, detail=f"Router {node_name} no encontrado")
 
     try:
-        output = node.set_running_config(data.config)
-        return {"message": f"Configuración establecida con éxito: {output}"}
+        return node.set_running_config(data.config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

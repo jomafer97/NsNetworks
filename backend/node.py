@@ -6,11 +6,10 @@ from .iface import Iface
 
 class Node(metaclass=abc.ABCMeta):
     """
-    Clase Abstracta Base.
-    Define lo que CUALQUIER cosa conectada a la red debe tener.
+    Clase Abstracta Base de un nodo de red.
     """
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
         self.net_ns: NetworkNamespace = NetworkNamespace(f"netns_{name}")
         self._iface_counter = 0
@@ -89,7 +88,7 @@ class Node(metaclass=abc.ABCMeta):
 
 class IsolatedNode(Node):
     """
-    Nodos aislados mediante namespaces, OverlayFS y Cgroups
+    Nodos aislados mediante Namespaces, OverlayFS y Cgroups
     """
 
     BASE_PATH = "/var/lib/net_project"
@@ -98,7 +97,7 @@ class IsolatedNode(Node):
     def __init__(
         self,
         name: str,
-        lower_dir: str = f"{BASE_PATH}/alpine_base",
+        lowerdir: str = f"{BASE_PATH}/alpine_base",
         limits: dict | None = None,
         command: str = "/bin/sleep 3600",
     ):
@@ -109,7 +108,7 @@ class IsolatedNode(Node):
         self.pid = None
 
         self.overlay = {
-            "lower": lower_dir,
+            "lower": lowerdir,
             "upper": f"{IsolatedNode.BASE_PATH}/nodes/{name}/upper",
             "work": f"{IsolatedNode.BASE_PATH}/nodes/{name}/work",
             "merged": f"{IsolatedNode.BASE_PATH}/nodes/{name}/merged",
@@ -178,13 +177,13 @@ class IsolatedNode(Node):
         time.sleep(0.5)
 
         try:
-            zombie_pid, estado = os.waitpid(self.pid, os.WNOHANG)
+            zombie_pid, status = os.waitpid(self.pid, os.WNOHANG)
 
             if zombie_pid == self.pid:
                 self.pid = None
                 self.delete()
                 raise RuntimeError(
-                    f"El nodo {self.name} crasheó al arrancar (Status: {estado})."
+                    f"El nodo {self.name} crasheó al arrancar (Status: {status})."
                 )
 
             return self.pid
@@ -209,8 +208,8 @@ class IsolatedNode(Node):
         stderr = result.stderr.strip()
 
         if result.returncode != 0:
-            print(f"[!] Error ejecutando '{' '.join(command)}' en {self.name}:")
-            print(f"Salida de error: {stderr}")
+            error_msg = f"Error ejecutando '{' '.join(command)}' en {self.name}.\nStderr: {stderr}"
+            raise RuntimeError(error_msg)
 
         return stdout
 

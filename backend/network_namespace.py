@@ -1,4 +1,3 @@
-import subprocess
 from .iface import Iface
 from pyroute2 import netns
 
@@ -18,15 +17,15 @@ class NetworkNamespace:
 
         try:
             lo = Iface("lo")
-            lo.net_ns = self
+            lo.netns_name = self.name
             lo.up()
         except Exception as e:
             self.cleanup()
             raise RuntimeError(f"Fallo configurando loopback en {self.name}: {e}")
 
     def attach(self, iface: Iface):
-        if iface.net_ns != self:
-            iface.attach_netns(self)
+        if iface.netns_name != self.name:
+            iface.attach_netns(self.name)
         self.ifaces[iface.name] = iface
 
     def remove_iface(self, iface_name: str):

@@ -7,7 +7,7 @@ class Iface:
 
     def __init__(self, name: str):
         self.name = name
-        self.net_ns = None
+        self.netns_name = None
         self.addr = None
         self.mask = None
         self.idx = None
@@ -19,7 +19,7 @@ class Iface:
 
     def get_index(self, ipr=None):
         """Obtiene y cachea el índice numérico de la interfaz en el host."""
-        if self.net_ns:
+        if self.netns_name:
             return None
 
         if not self.idx:
@@ -37,13 +37,13 @@ class Iface:
 
     def is_up(self, ipr=None) -> bool:
         """Devuelve True si está UP, False si está DOWN."""
-        if self.net_ns:
+        if self.netns_name:
             res = subprocess.run(
                 [
                     "ip",
                     "netns",
                     "exec",
-                    self.net_ns.get_name(),
+                    self.netns_name,
                     "ip",
                     "link",
                     "show",
@@ -69,13 +69,13 @@ class Iface:
 
     def up(self, ipr=None):
         """Levanta la interfaz."""
-        if self.net_ns:
+        if self.netns_name:
             subprocess.run(
                 [
                     "ip",
                     "netns",
                     "exec",
-                    self.net_ns.get_name(),
+                    self.netns_name,
                     "ip",
                     "link",
                     "set",
@@ -102,13 +102,13 @@ class Iface:
         if self.addr:
             self.delete_addr(ipr=ipr)
 
-        if self.net_ns:
+        if self.netns_name:
             subprocess.run(
                 [
                     "ip",
                     "netns",
                     "exec",
-                    self.net_ns.get_name(),
+                    self.netns_name,
                     "ip",
                     "addr",
                     "add",
@@ -138,13 +138,13 @@ class Iface:
         if not self.addr or not self.mask:
             return
 
-        if self.net_ns:
+        if self.netns_name:
             subprocess.run(
                 [
                     "ip",
                     "netns",
                     "exec",
-                    self.net_ns.get_name(),
+                    self.netns_name,
                     "ip",
                     "addr",
                     "del",
@@ -170,19 +170,19 @@ class Iface:
             if close_ipr and ipr:
                 ipr.close()
 
-    def attach_netns(self, target_net_ns):
+    def attach_netns(self, target_net_ns: str):
         """
         Asocia un netns a la interfaz
         """
-        if target_net_ns == self.net_ns:
+        if target_net_ns == self.netns_name:
             return
 
         ipr, close_ipr = self._get_handle()
 
         try:
             current_idx = self.get_index(ipr=ipr)
-            ipr.link("set", index=current_idx, net_ns_fd=target_net_ns.get_name())
-            self.net_ns = target_net_ns
+            ipr.link("set", index=current_idx, net_ns_fd=target_net_ns)
+            self.netns_name = target_net_ns
             self.idx = None
             self.state = "down"
             self.addr = None
@@ -192,13 +192,13 @@ class Iface:
                 ipr.close()
 
     def delete(self, ipr=None):
-        if self.net_ns:
+        if self.netns_name:
             subprocess.run(
                 [
                     "ip",
                     "netns",
                     "exec",
-                    self.net_ns.get_name(),
+                    self.netns_name,
                     "ip",
                     "link",
                     "del",
@@ -208,7 +208,7 @@ class Iface:
             )
             self.idx = None
             self.state = "down"
-            self.net_ns = None
+            self.netns_name = None
             self.addr = None
             return
 
@@ -221,7 +221,7 @@ class Iface:
                 ipr.link("del", index=current_idx)
             self.idx = None
             self.state = "down"
-            self.net_ns = None
+            self.netns_name = None
             self.addr = None
         finally:
             if close_ipr and ipr:

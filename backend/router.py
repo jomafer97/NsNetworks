@@ -159,32 +159,58 @@ tail -f /dev/null
             return {}
 
     def get_running_config(self) -> str:
-        """Obtiene la configuración actual del router en texto plano."""
+        """Obtiene la configuración actual del router limpia de cabeceras."""
         try:
             conf = self.exec_in_node(["vtysh", "-c", "show running-config"])
-            return conf if conf else "! Configuración vacía o router apagado"
+            if not conf:
+                return "! Configuración vacía o router apagado"
 
+            marker = "Current configuration:"
+            if marker in conf:
+                conf = conf.split(marker, 1)[1].lstrip()
+            elif "frr version" in conf:
+                conf = conf[conf.find("frr version") :]
+
+            return conf
         except Exception as e:
             print(f"Error obteniendo running-config en {self.name}: {e}")
             return f"! Error obteniendo configuración: {e}"
 
     def set_running_config(self, config_text: str):
         """
-        Inyecta la configuración respetando el aislamiento y reinicia los demonios.
+        Inyecta la configuración y recarga los demonios en caliente
+        calculando el diff, sin tirar las adyacencias OSPF.
         """
         if not self.pid:
             raise RuntimeError(
                 f"El nodo {self.name} debe estar encendido para reconfigurarlo."
             )
 
-        self.exec_in_node(
-            ["sh", "-c", "cat > /etc/frr/frr.conf"], input_text=config_text
-        )
-        self.exec_in_node(["chown", "frr:frr", "/etc/frr/frr.conf"])
-        self.exec_in_node(["chmod", "640", "/etc/frr/frr.conf"])
+        if not config_text.endswith("\n"):
+            config_text += "\n"
+
+        temp_conf = "/tmp/new_frr.conf"
+
+        self.exec_in_node(["sh", "-c", f"cat > {temp_conf}"], input_text=config_text)
+        self.exec_in_node(["chown", "frr:frr", temp_conf])
         self.exec_in_node(["sed", "-i", "s/ospfd=no/ospfd=yes/g", "/etc/frr/daemons"])
 
-        detach_cmd = "nohup /usr/lib/frr/frrinit.sh restart > /dev/null 2>&1 &"
-        self.exec_in_node(["sh", "-c", detach_cmd])
+        reload_cmd = ["/usr/lib/frr/frr-reload.py", "--reload", temp_conf]
 
-        return "Configuración aplicada con éxito"
+        try:
+            output = self.exec_in_node(reload_cmd)
+
+        except RuntimeError as e:
+            self.exec_in_node(["rm", "-f", temp_conf])
+
+            return {
+                "status": "error",
+                "message": f"Error de sintaxis en FRR. Cambios revertidos.\nDetalles: {str(e)}",
+            }
+
+        self.exec_in_node(["mv", temp_conf, "/etc/frr/frr.conf"])
+
+        return {
+            "status": "success",
+            "message": "Configuración aplicada correctamente sin cortes en OSPF.",
+        }

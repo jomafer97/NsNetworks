@@ -5,7 +5,6 @@ cdef extern from "core_logic.h":
 def create_container(node_name: str, lower_dir: str, upper_dir: str, work_dir: str, merged_dir: str, netns_name: str, command: str, cgroup_path: str) -> int:
     """
     Wrapper para instanciar el contenedor desde C.
-    Convierte los strings de Python a bytes para que C los interprete como char*.
     """
     print(f"[Cython Debug] Preparando nodo: {node_name} | Netns: {netns_name}")
     # Conversión estricta a bytes (UTF-8)

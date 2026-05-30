@@ -5,9 +5,7 @@ from .node import Node
 
 class Switch(Node):
     """
-    Representa un Switch de Capa 2 utilizando un Linux Bridge.
-    Hereda de Node para integrarse en la topología, pero es más ligero
-    que un IsolatedNode.
+    Representa un Switch de Capa 2.
     """
 
     def __init__(self, name: str):
@@ -40,29 +38,13 @@ class Switch(Node):
                 bridge_name,
                 "type",
                 "bridge",
-            ],
-            check=True,
-        )
-
-        subprocess.run(
-            [
-                "ip",
-                "netns",
-                "exec",
-                ns_name,
-                "ip",
-                "link",
-                "set",
-                bridge_name,
-                "type",
-                "bridge",
                 "stp_state",
                 "0",
             ],
             check=True,
         )
 
-        self.bridge.net_ns = self.net_ns
+        self.bridge.netns_name = ns_name
         self.bridge.up()
 
     def attach(self, iface: Iface):

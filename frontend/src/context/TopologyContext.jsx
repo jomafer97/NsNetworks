@@ -163,7 +163,7 @@ export function TopologyContextProvider({ children }) {
 
     const setRunningConfig = async (nodeName, config) => {
         try {
-            await TfgService.setRunningConfig(nodeName, config);
+            return await TfgService.setRunningConfig(nodeName, config);
         } catch (error) {
             console.error("Fallo al establecer la configuración:", error);
             throw error;
@@ -172,7 +172,7 @@ export function TopologyContextProvider({ children }) {
 
     const getRunningConfig = async (name) => {
         try {
-            return await TfgService.getRunningConfig(name); // 🟢 Return añadido
+            return await TfgService.getRunningConfig(name);
         } catch (error) {
             console.error("Fallo al obtener la configuración del nodo:", error);
             throw error;

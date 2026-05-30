@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const ApiClient = axios.create({
     baseURL: 'http://192.168.2.100:8000/api/v1',
-    timeout: 20000,
+    timeout: 10000,
 });
 
 export const TfgService = {

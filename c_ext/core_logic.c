@@ -21,22 +21,15 @@
 
 struct node_config {
     char node_name[64];
-
     char lower_dir[512];
     char upper_dir[512];
     char work_dir[512];
     char merged_dir[512];
-
     char netns_name[128];
-
     char command[1024];
-
     char cgroup_path[512];
-
-    /*
-     * FD de sincronización para evitar race conditions
-     */
-    int sync_fd;
+    int sync_fd_read;
+    int sync_fd_write;
 };
 
 /*
@@ -85,37 +78,25 @@ int container_entry(void *arg) {
 
     char dummy;
 
-    if (read(config->sync_fd, &dummy, 1) != 1) {
+    close(config->sync_fd_write);
+
+    if (read(config->sync_fd_read, &dummy, 1) != 1) {
         perror("read sync pipe");
         return -1;
     }
 
-    close(config->sync_fd);
+    close(config->sync_fd_read);
 
     prctl(PR_SET_NAME, "c_core_init\0", 0, 0, 0);
 
-    printf("[C-Core] Inicializando contenedor %s (PID interno: %d)\n",
-           config->node_name,
-           getpid());
-
-    /*
-     * --------------------------------------------------------
-     * UTS namespace
-     * --------------------------------------------------------
-     */
-
+    /* UTS namespace */
     if (sethostname(config->node_name,
                     strlen(config->node_name)) != 0) {
         perror("sethostname");
         return -1;
     }
 
-    /*
-     * --------------------------------------------------------
-     * NET namespace
-     * --------------------------------------------------------
-     */
-
+    /* NET namespace */
     char netns_path[256];
 
     snprintf(netns_path,
@@ -138,12 +119,7 @@ int container_entry(void *arg) {
 
     close(netns_fd);
 
-    /*
-     * --------------------------------------------------------
-     * Mount namespace
-     * --------------------------------------------------------
-     */
-
+    /* Mount namespace y OverlayFS */
     if (mount(NULL,
               "/",
               NULL,
@@ -152,12 +128,6 @@ int container_entry(void *arg) {
         perror("mount MS_PRIVATE");
         return -1;
     }
-
-    /*
-     * --------------------------------------------------------
-     * OverlayFS
-     * --------------------------------------------------------
-     */
 
     char options[4096];
 
@@ -182,10 +152,7 @@ int container_entry(void *arg) {
         return -1;
     }
 
-    /*
-     * merged_dir debe ser un mountpoint para pivot_root
-     */
-
+    /* pivot_root */
     if (mount(config->merged_dir,
               config->merged_dir,
               NULL,
@@ -202,12 +169,6 @@ int container_entry(void *arg) {
 
     mkdir("oldroot", 0777);
 
-    /*
-     * --------------------------------------------------------
-     * pivot_root
-     * --------------------------------------------------------
-     */
-
     if (syscall(SYS_pivot_root, ".", "oldroot") != 0) {
         perror("pivot_root");
         return -1;
@@ -218,12 +179,7 @@ int container_entry(void *arg) {
         return -1;
     }
 
-    /*
-     * --------------------------------------------------------
-     * /proc
-     * --------------------------------------------------------
-     */
-
+    /* proc */
     mkdir("/proc", 0555);
 
     if (mount("proc",
@@ -235,12 +191,7 @@ int container_entry(void *arg) {
         return -1;
     }
 
-    /*
-     * --------------------------------------------------------
-     * /sys
-     * --------------------------------------------------------
-     */
-
+    /* sys */
     mkdir("/sys", 0555);
 
     if (mount("sysfs",
@@ -252,12 +203,7 @@ int container_entry(void *arg) {
         perror("mount /sys");
     }
 
-    /*
-     * --------------------------------------------------------
-     * /dev
-     * --------------------------------------------------------
-     */
-
+    /* dev */
     mkdir("/dev", 0755);
 
     if (mount("tmpfs",
@@ -273,100 +219,30 @@ int container_entry(void *arg) {
     mknod("/dev/random",  S_IFCHR | 0666, makedev(1, 8));
     mknod("/dev/urandom", S_IFCHR | 0666, makedev(1, 9));
 
-    /*
-     * --------------------------------------------------------
-     * Limpiar oldroot
-     * --------------------------------------------------------
-     */
-
+    /* Limpiar oldroot */
     if (umount2("/oldroot", MNT_DETACH) != 0) {
         perror("umount oldroot");
     }
 
     rmdir("/oldroot");
 
-    /*
-     * --------------------------------------------------------
-     * Ejecutar proceso final
-     * --------------------------------------------------------
-     */
+    char *exec_args[] = {
+        "/sbin/init-c-core", // Este es el nombre que verá 'ps aux'
+        "/bin/sh",
+        "-c",
+        config->command,
+        NULL
+    };
 
-        /*
-    * ============================================================
-    * INIT SIMPLE (PID 1)
-    * ============================================================
-    */
+    char *exec_env[] = {
+        "PATH=/bin:/usr/bin:/sbin:/usr/sbin",
+        NULL
+    };
 
-    signal(SIGCHLD, SIG_DFL);
+    execve(exec_args[0], exec_args, exec_env);
 
-    pid_t child = fork();
-
-    if (child < 0) {
-        perror("fork");
-        return -1;
-    }
-
-    /*
-    * ------------------------------------------------------------
-    * HIJO
-    * ------------------------------------------------------------
-    */
-
-    if (child == 0) {
-
-        /*
-        * Crear nueva sesión
-        */
-        setsid();
-
-        char *exec_args[] = {
-            "/bin/sh",
-            "-c",
-            config->command,
-            NULL
-        };
-
-        char *exec_env[] = {
-            "PATH=/bin:/usr/bin:/sbin:/usr/sbin",
-            NULL
-        };
-
-        execve(exec_args[0], exec_args, exec_env);
-
-        perror("execve");
-
-        _exit(127);
-    }
-
-    /*
-    * ------------------------------------------------------------
-    * PADRE = PID 1
-    * ------------------------------------------------------------
-    */
-
-    int status;
-
-    while (1) {
-        pid_t pid = waitpid(-1, &status, 0);
-
-        if (pid < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-
-            if (errno == ECHILD) {
-                sleep(1);
-                continue;
-            }
-
-            perror("waitpid error critico");
-            sleep(1);
-            continue;
-        }
-
-    }
-
-    return 0;
+    perror("CRITICO: execve a /sbin/init-c-core fallo. Revisa que exista en el filesystem");
+    return -1;
 }
 
 /*
@@ -389,24 +265,12 @@ int start_node(char *node_name,
 
     fflush(stdout);
 
-    /*
-     * --------------------------------------------------------
-     * Crear stack
-     * --------------------------------------------------------
-     */
-
     char *stack = malloc(STACK_SIZE);
 
     if (!stack) {
         perror("malloc");
         return -1;
     }
-
-    /*
-     * --------------------------------------------------------
-     * Pipe de sincronización
-     * --------------------------------------------------------
-     */
 
     int sync_pipe[2];
 
@@ -416,11 +280,6 @@ int start_node(char *node_name,
         return -1;
     }
 
-    /*
-     * --------------------------------------------------------
-     * Config en la stack
-     * --------------------------------------------------------
-     */
     struct node_config *config =
         calloc(1, sizeof(struct node_config));
 
@@ -464,17 +323,8 @@ int start_node(char *node_name,
             cgroup_path,
             sizeof(config->cgroup_path) - 1);
 
-    /*
-     * El hijo leerá desde aquí
-     */
-
-    config->sync_fd = sync_pipe[0];
-
-    /*
-     * --------------------------------------------------------
-     * clone()
-     * --------------------------------------------------------
-     */
+    config->sync_fd_read  = sync_pipe[0];
+    config->sync_fd_write = sync_pipe[1];
 
     int clone_flags =
         CLONE_NEWPID |
@@ -500,41 +350,16 @@ int start_node(char *node_name,
         return -1;
     }
 
-    printf("[C-Core PADRE] El PID del hijo en el host es %d\n", child_pid);
-    fflush(stdout);
-    /*
-     * El padre no necesita leer
-     */
-
     close(sync_pipe[0]);
 
-    /*
-     * --------------------------------------------------------
-     * Añadir proceso al cgroup
-     * --------------------------------------------------------
-     */
-
-    if (add_pid_to_cgroup(cgroup_path,
-                          child_pid) != 0) {
-
+    if (add_pid_to_cgroup(cgroup_path, child_pid) != 0) {
         perror("add_pid_to_cgroup");
-
         kill(child_pid, SIGKILL);
-
         close(sync_pipe[1]);
-
         waitpid(child_pid, NULL, 0);
-
         free(stack);
-
         return -1;
     }
-
-    /*
-     * --------------------------------------------------------
-     * Liberar al hijo
-     * --------------------------------------------------------
-     */
 
     if (write(sync_pipe[1], "x", 1) != 1) {
         perror("sync write");

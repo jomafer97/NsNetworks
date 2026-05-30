@@ -2,3 +2,4 @@ pyroute2
 fastapi
 uvicorn
 setuptools
+cython
