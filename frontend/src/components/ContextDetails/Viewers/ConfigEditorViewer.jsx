@@ -53,7 +53,7 @@ export const ConfigEditorViewer = ({ data, nodeName }) => {
                 spellCheck="false"
             />
 
-            <div className="flex justify-between items-center min-h-[48px]">
+            <div className="flex justify-between items-center min-h-12">
 
                 <div className="flex-1 mr-4">
                     {saveStatus.message && (

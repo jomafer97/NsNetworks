@@ -86,39 +86,39 @@ export function TopologyGraph({ onNodeSelect }) {
                     edge: clickedEdgeId
                 });
             });
-        }
 
-        networkRef.current.on('oncontext', (params) => {
-            params.event.preventDefault();
+            networkRef.current.on('oncontext', (params) => {
+                params.event.preventDefault();
 
-            const nodeId = networkRef.current.getNodeAt(params.pointer.DOM);
+                const nodeId = networkRef.current.getNodeAt(params.pointer.DOM);
 
-            if (nodeId) {
-                const clickedNode = nodesDataSet.current.get(nodeId)?.rawData;
+                if (nodeId) {
+                    const clickedNode = nodesDataSet.current.get(nodeId)?.rawData;
 
-                if (clickedNode) {
-                    setContextMenu({
-                        show: true,
-                        x: params.event.clientX,
-                        y: params.event.clientY,
-                        node: clickedNode
-                    });
+                    if (clickedNode) {
+                        setContextMenu({
+                            show: true,
+                            x: params.event.clientX,
+                            y: params.event.clientY,
+                            node: clickedNode
+                        });
+                    }
+                } else {
+                    setContextMenu(prev => ({ ...prev, show: false }));
                 }
-            } else {
+            });
+
+            networkRef.current.on('dragStart', () => {
                 setContextMenu(prev => ({ ...prev, show: false }));
-            }
-        });
+            });
 
-        networkRef.current.on('dragStart', () => {
-            setContextMenu(prev => ({ ...prev, show: false }));
-        });
-
-        return () => {
-            if (networkRef.current) {
-                networkRef.current.destroy();
-                networkRef.current = null;
-            }
-        };
+            return () => {
+                if (networkRef.current) {
+                    networkRef.current.destroy();
+                    networkRef.current = null;
+                }
+            };
+        }
     }, []);
 
     useEffect(() => {
@@ -143,16 +143,20 @@ export function TopologyGraph({ onNodeSelect }) {
         nodesDataSet.current.update(formattedNodes);
         linksDataSet.current.update(formattedLinks);
 
+        const backendNodeIds = new Set(nodes.map(node => node.name));
         const paintedNodeIds = nodesDataSet.current.getIds();
+
         paintedNodeIds.forEach(paintedId => {
-            if (!nodes.some(backendNode => backendNode.name === paintedId)) {
+            if (!backendNodeIds.has(paintedId)) {
                 nodesDataSet.current.remove(paintedId);
             }
         });
 
+        const backendLinkIds = new Set(links.map(link => link.id));
         const paintedLinkIds = linksDataSet.current.getIds();
+
         paintedLinkIds.forEach(paintedId => {
-            if (!links.some(backendLink => backendLink.id === paintedId)) {
+            if (!backendLinkIds.has(paintedId)) {
                 linksDataSet.current.remove(paintedId);
             }
         });
@@ -160,7 +164,11 @@ export function TopologyGraph({ onNodeSelect }) {
     }, [nodes, links]);
 
     return (
-        <div ref={containerRef} className="w-full h-full outline-none bg-mauve-400">
+        <div
+            ref={containerRef}
+            className="w-full h-full bg-mauve-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            tabIndex={0}
+        >
             {contextMenu.show && contextMenu.node && (
                 <ContextMenu contextMenu={contextMenu} setContextMenu={setContextMenu} setModalState={setModalState} />
             )}

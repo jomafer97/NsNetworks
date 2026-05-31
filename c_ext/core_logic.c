@@ -152,16 +152,6 @@ int container_entry(void *arg) {
         return -1;
     }
 
-    /* pivot_root */
-    if (mount(config->merged_dir,
-              config->merged_dir,
-              NULL,
-              MS_BIND | MS_REC,
-              NULL) != 0) {
-        perror("bind mount merged_dir");
-        return -1;
-    }
-
     if (chdir(config->merged_dir) != 0) {
         perror("chdir merged_dir");
         return -1;
@@ -227,7 +217,7 @@ int container_entry(void *arg) {
     rmdir("/oldroot");
 
     char *exec_args[] = {
-        "/sbin/init-c-core", // Este es el nombre que verá 'ps aux'
+        "/sbin/init-c-core",
         "/bin/sh",
         "-c",
         config->command,

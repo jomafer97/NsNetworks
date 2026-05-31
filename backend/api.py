@@ -17,7 +17,6 @@ active_node_pids = set()
 async def zombie_reaper_task():
     """
     Tarea en segundo plano que recolecta los procesos huérfanos (zombis).
-    Gracias a que el contenedor en C emite SIGCHLD, waitpid estándar es suficiente.
     """
     while True:
         for pid in list(active_node_pids):

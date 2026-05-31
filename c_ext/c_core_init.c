@@ -23,9 +23,7 @@ int main(int argc, char *argv[]) {
 
     if (child == 0) {
         setsid();
-
         execvp(argv[1], &argv[1]);
-
         perror("execvp payload");
         _exit(127);
     }
