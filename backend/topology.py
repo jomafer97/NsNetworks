@@ -1,5 +1,6 @@
 from .node import Node
 from .link import Link
+import concurrent.futures
 import json
 
 
@@ -77,13 +78,26 @@ class Topology:
             node.delete()
 
     def start_all(self):
-        """Inicia todos los nodos de la topología"""
+        """Inicia todos los nodos de la topología limitando la concurrencia."""
         created_pids = []
 
-        for node in self.nodes.values():
-            pid = node.start()
-            if pid:
-                created_pids.append(pid)
+        max_threads = min(len(self.nodes), 7)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+            future_to_node = {
+                executor.submit(node.start): node for node in self.nodes.values()
+            }
+
+            for future in concurrent.futures.as_completed(future_to_node):
+                try:
+                    pid = future.result()
+                    if pid:
+                        created_pids.append(pid)
+                except Exception as exc:
+                    node = future_to_node[future]
+                    print(f"[!] El nodo {node.name} falló al arrancar: {exc}")
+
+        return created_pids
 
         return created_pids
 

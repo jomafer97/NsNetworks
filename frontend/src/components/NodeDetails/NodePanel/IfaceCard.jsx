@@ -80,7 +80,7 @@ export const IfaceCard = ({ nodeName, nodeType, ifaceName, ifaceIp }) => {
                     <button
                         onClick={handleSave}
                         disabled={currentMode !== MODES.IDLE}
-                        className={`text-white px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${currentMode === MODES.APPLYING_IP ? 'bg-blue-300 !cursor-wait' : 'bg-blue-600 hover:bg-blue-700'
+                        className={`text-white px-3 py-1 rounded text-xs font-semibold transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${currentMode === MODES.APPLYING_IP ? 'bg-blue-300 cursor-wait!' : 'bg-blue-600 hover:bg-blue-700'
                             }`}
                     >
                         {currentMode === MODES.APPLYING_IP ? '...' : 'Guardar'}

@@ -174,7 +174,7 @@ class IsolatedNode(Node):
         if self.pid == -1:
             raise RuntimeError(f"Fallo crítico al levantar el nodo {self.name} en C")
 
-        time.sleep(0.5)
+        time.sleep(0.05)
 
         try:
             zombie_pid, status = os.waitpid(self.pid, os.WNOHANG)
