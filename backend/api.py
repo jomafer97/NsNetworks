@@ -101,6 +101,10 @@ class ConfigUpdate(BaseModel):
     config: str
 
 
+class CommandRequest(BaseModel):
+    command: list[str]
+
+
 @app.get("/api/v1/network", tags=["Network"])
 def get_network_state():
     """Devuelve el estado completo del grafo (Nodos y Enlaces)."""
@@ -418,3 +422,29 @@ def set_running_config(node_name: str, data: ConfigUpdate):
         return node.set_running_config(data.config)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/nodes/{node_name}/exec", tags=["Nodes"])
+def execute_command_in_node(node_name: str, data: CommandRequest):
+    """Inyecta un comando en el nodo y devuelve el resultado"""
+    global current_topology
+    if not current_topology:
+        raise HTTPException(status_code=503, detail="Motor no inicializado")
+
+    node = current_topology.get_node(node_name)
+    if not node:
+        raise HTTPException(status_code=404, detail=f"El nodo '{node_name}' no existe.")
+
+    if not isinstance(node, IsolatedNode):
+        raise HTTPException(
+            status_code=400,
+            detail="El nodo no soporta ejecución de comandos (no está aislado).",
+        )
+
+    try:
+        output = node.exec_in_node(data.command)
+        return {"output": output}
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fallo inesperado: {str(e)}")
