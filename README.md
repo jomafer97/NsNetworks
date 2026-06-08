@@ -45,7 +45,7 @@ Dado que la interfaz presenta una arquitectura desacoplada y se sirve de forma e
 * **Alojamiento (Host):** Cualquier servidor web capaz de servir archivos estáticos (Nginx, Apache, o utilidades ligeras como `http.server` de Python).
 * **Entorno de ejecución (Cliente):** Navegador web moderno con soporte estándar para JavaScript (Google Chrome, Mozilla Firefox, Microsoft Edge, etc.). No requiere la instalación de ningún software adicional en la máquina del usuario final.
 
-## Ejecución del programa
+## Ejecución del *backend*
 
 A continuación, se describen los pasos a seguir para ejecutar la aplicación de forma sencilla.
 
@@ -72,10 +72,12 @@ La inicialización del servidor se puede realizar de forma sencilla a través de
 Para arrancar el motor, basta con ejecutar (en el directorio *backend*):
 
 ```bash
-sudo python3 main.py
+sudo python3 -m src.main
 ```
 
-### 3. Compilación de la interfaz gráfica (Frontend)
+## Ejecución del *frontend*
+
+### 1. Compilación de la interfaz gráfica (Frontend)
 
 Aunque no es necesario que el *frontend* se ejecute en el mismo host que el *backend*, es importante que el valor de la clave `baseURL` presente en la llamada a la función `axios.create()` en el archivo `api.js` contenga la dirección en la que se encuentra escuchando la API del servidor.
 
@@ -95,7 +97,7 @@ pnpm build
 cd ..
 ```
 
-### 4. Ejecución de la aplicación web
+### 2. Ejecución de la aplicación web
 
 Una vez realizado el build del frontend, los archivos resultantes pueden ser alojados en cualquier servidor web estándar (como Nginx o Apache) o en servicios de despliegue estático.
 
