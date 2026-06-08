@@ -49,7 +49,17 @@ Dado que la interfaz presenta una arquitectura desacoplada y se sirve de forma e
 
 A continuación, se describen los pasos a seguir para ejecutar la aplicación de forma sencilla.
 
-### 1. Inicialización del servidor
+### 1. Compilación del motor en C (Cython)
+
+Antes de inicializar el orquestador, es estrictamente necesario compilar el código fuente en C para generar la librería dinámica (`.so`) que permitirá a Python ejecutar la rutina de aislamiento. Además, se deben instalar las dependencias del orquestador.
+
+```bash
+cd backend
+pip install -r requirements.txt
+python3 setup.py build_ext --inplace
+```
+
+### 2. Inicialización del servidor
 
 La inicialización del servidor se puede realizar de forma sencilla a través del script `main.py` presente en la carpeta `backend`. La rutina realizada por este script es la siguiente:
 
@@ -59,14 +69,13 @@ La inicialización del servidor se puede realizar de forma sencilla a través de
 4. **Verificación del sistema de archivos base:** Comprueba la existencia del *rootfs* de Alpine Linux en `/var/lib/net_project/alpine_base`. Si es la primera ejecución y no lo encuentra, invoca automáticamente al script `init.sh` para descargarlo, instalar sus dependencias (como FRRouting) y compilar el proceso *init* nativo en C.
 5. **Despliegue de la API:** Tras validar el entorno de bajo nivel, lanza el servidor Uvicorn exponiendo la API REST de FastAPI en el puerto 8000.
 
-Para arrancar el motor, basta con ejecutar:
+Para arrancar el motor, basta con ejecutar (en el directorio *backend*):
 
 ```bash
-cd backend
 sudo python3 main.py
 ```
 
-### 2. Compilación de la interfaz gráfica (Frontend)
+### 3. Compilación de la interfaz gráfica (Frontend)
 
 Aunque no es necesario que el *frontend* se ejecute en el mismo host que el *backend*, es importante que el valor de la clave `baseURL` presente en la llamada a la función `axios.create()` en el archivo `api.js` contenga la dirección en la que se encuentra escuchando la API del servidor.
 
@@ -86,7 +95,7 @@ pnpm build
 cd ..
 ```
 
-### 3. Ejecución de la aplicación web
+### 4. Ejecución de la aplicación web
 
 Una vez realizado el build del frontend, los archivos resultantes pueden ser alojados en cualquier servidor web estándar (como Nginx o Apache) o en servicios de despliegue estático.
 
