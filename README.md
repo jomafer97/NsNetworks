@@ -88,9 +88,9 @@ cd ..
 
 ### 3. Ejecución de la aplicación web
 
-Al tratarse de una arquitectura desacoplada, la carpeta dist resultante contiene archivos estáticos puros que no requieren Node.js para ejecutarse en producción. Pueden ser alojados en cualquier servidor web estándar (como Nginx o Apache) o en servicios de despliegue estático.
+Una vez realizado el build del frontend, los archivos resultantes pueden ser alojados en cualquier servidor web estándar (como Nginx o Apache) o en servicios de despliegue estático.
 
-Para un despliegue local rápido o entorno de pruebas, es posible utilizar el servidor HTTP integrado en Python para servir la interfaz gráfica directamente desde la carpeta generada:
+Por ejemplo, para un despliegue local rápido o entorno de pruebas, es posible utilizar el servidor HTTP integrado en Python para servir la interfaz gráfica directamente desde la carpeta generada:
 
 ```bash
 cd frontend/dist
