@@ -125,7 +125,7 @@ export function TopologyGraph({ onNodeSelect }) {
         const formattedNodes = nodes.map(node => ({
             id: node.name,
             label: `${node.name}\n(${node.type})`,
-            shape: 'box',
+            shape: node.type.toLowerCase() === 'switch' ? 'box' : 'circle',
             color: node.type.toLowerCase() === 'switch' ? '#FFC107' : '#2196F3',
             font: { color: 'white', face: 'monospace' },
             rawData: node
