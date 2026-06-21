@@ -117,20 +117,38 @@ def ram_test(nRouters):
         print("=" * 50 + "\n")
 
 
+def run_nsnetworks_suite(node_counts):
+    print("==================================================")
+    print("  SUITE AUTOMATIZADA: BENCHMARK NSNETWORKS (L3)")
+    print("==================================================\n")
+
+    results = {}
+
+    for n in node_counts:
+        print(f"\n[*] --- INICIANDO CICLO PARA {n} ROUTERS ---")
+
+        success = speed_test(n)
+
+        if success:
+            results[n] = "Éxito"
+        else:
+            results[n] = "Fallo"
+
+        print("[*] Limpiando infraestructura...")
+        requests.delete(f"{BASE_URL}/network")
+        time.sleep(3)
+
+    print("\n" + "=" * 50)
+    print("                 RESUMEN FINAL                    ")
+    print("=" * 50)
+    for n, res in results.items():
+        print(f"[*] {n} Routers: {res}")
+    print("=" * 50 + "\n")
+
 if __name__ == "__main__":
-    check_api()
-
-    if len(sys.argv) > 1 and sys.argv[1].isdigit():
-        num_routers = int(sys.argv[1])
+    if len(sys.argv) > 1:
+        counts = [int(x) for x in sys.argv[1:] if x.isdigit()]
     else:
-        print("Uso: python3 benchmark.py <numero_de_routers>")
-        sys.exit(0)
+        counts = [10, 20]
 
-    success = speed_test(num_routers)
-
-    if success:
-        ram_test(num_routers)
-
-    print("[*] Limpiando infraestructura y desmontando Cgroups...")
-    requests.delete(f"{BASE_URL}/network")
-    print("[+] Test finalizado con éxito.")
+    run_nsnetworks_suite(counts)
