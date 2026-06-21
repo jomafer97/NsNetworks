@@ -14,7 +14,7 @@ export const RoutingTableViewer = ({ data }) => {
                     <tr>
                         <th className="px-4 py-3 font-semibold text-gray-700 uppercase tracking-wider text-xs">Red Destino</th>
                         <th className="px-4 py-3 font-semibold text-gray-700 uppercase tracking-wider text-xs">Protocolo</th>
-                        <th className="px-4 py-3 font-semibold text-gray-700 uppercase tracking-wider text-xs">Distancia/Métrica</th>
+                        <th className="px-4 py-3 font-semibold text-gray-700 uppercase tracking-wider text-xs">AD/Métrica</th>
                         <th className="px-4 py-3 font-semibold text-gray-700 uppercase tracking-wider text-xs">Siguiente Salto</th>
                     </tr>
                 </thead>

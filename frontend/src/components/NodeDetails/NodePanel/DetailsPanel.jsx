@@ -38,7 +38,7 @@ export function DetailsPanel({ nodeInfo }) {
                 <p className="font-semibold text-gray-900 mb-3">Interfaces virtuales:</p>
 
                 {nodeInfo.interfaces && nodeInfo.interfaces.length > 0 ? (
-                    <ul className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <ul className="space-y-2 max-h-60 overflow-y-auto overflow-x-auto pr-1 pb-2">
                         {nodeInfo.interfaces.map((iface) => {
                             const ifaceName = typeof iface === 'string' ? iface : iface.name;
                             const ifaceIp = typeof iface === 'string' ? null : iface.ip;
@@ -46,7 +46,7 @@ export function DetailsPanel({ nodeInfo }) {
                             return (
                                 <li
                                     key={`${nodeInfo.name}-${ifaceName}`}
-                                    className="p-2 bg-gray-50 rounded border border-gray-200"
+                                    className="p-2 bg-gray-50 rounded border border-gray-200 w-full min-w-max"
                                 >
                                     <IfaceCard
                                         key={ifaceName}

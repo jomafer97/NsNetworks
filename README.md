@@ -2,7 +2,7 @@
 
 NsNetworks es una herramienta que permite crear topologías de nodos arbitrarias haciendo uso de las herramientas de aislamiento del Kernel de Linux.
 
-Su funcionamento se basa en el principio de virtualización del Sistema Operativo (SO) realizado por los Container Runtime como *containerd*, siendo cada nodo un contenedor creado a partir del procedimiento habitual de construcción de contenedores.
+Su funcionamiento se basa en el principio de virtualización del Sistema Operativo (SO) realizado por los Container Runtime como *containerd*, siendo cada nodo un contenedor creado a partir del procedimiento habitual de construcción de contenedores.
 
 ## Características Principales
 
@@ -14,7 +14,7 @@ Su funcionamento se basa en el principio de virtualización del Sistema Operativ
 
     - El árbol de procesos, nombre del sistema, pila de red y los mecanismos de comunicación entre procesos se encuentran aislados gracias al uso de las *flags* correspondientes al crear el nuevo proceso mediante la función `clone()`.
 
-    - Todos los procesos se encuentran registrados en el `cgroups.proc` del directorio del árbol de cgroups correspondiente, lo que permite establecer límities a los recursos que estos pueden consumir.
+    - Todos los procesos se encuentran registrados en el `cgroups.proc` del directorio del árbol de cgroups correspondiente, lo que permite establecer límites a los recursos que estos pueden consumir.
 
 * **Capacidad de interconexión entre nodos:** Los nodos pueden ser conectados entre ellos mediante enlaces `veth` que conectan sus *Network Namespaces*.
 
@@ -29,9 +29,17 @@ Debido a que se trata de un proyecto que interactúa de forma directa con el Ker
 * **Sistema Operativo:** Debian 12 o superior.
 * **Librerías del sistema:**
     - `build-essential` (incluye `gcc` para compilar el motor nativo en C)
+    - `git`
     - `python3`
     - `python3-pip`
+    - `python3-venv`
     - `ca-certificates`
+
+    ```bash
+    sudo apt update
+    sudo apt install -y build-essential git python3 python3-pip python3-venv ca-certificates
+    ```
+
 * **Entorno de ejecución:** Python 3.10 o superior.
 * **Permisos:** Privilegios de superusuario (`sudo`) para la manipulación de la pila de red, clonación de *namespaces* y gestión de los directorios de control de *Cgroups*.
 
@@ -49,14 +57,24 @@ Dado que la interfaz presenta una arquitectura desacoplada y se sirve de forma e
 
 A continuación, se describen los pasos a seguir para ejecutar la aplicación de forma sencilla.
 
+En primer lugar, será necesario clonar el repositorio en el equipo en el que se vaya a ejecutar el *backend*:
+
+```bash
+git clone https://github.com/jomafer97/NsNetworks
+cd NsNetworks
+```
+
 ### 1. Compilación del motor en C (Cython)
 
 Antes de inicializar el orquestador, es estrictamente necesario compilar el código fuente en C para generar la librería dinámica (`.so`) que permitirá a Python ejecutar la rutina de aislamiento. Además, se deben instalar las dependencias del orquestador.
 
 ```bash
 cd backend
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 python3 setup.py build_ext --inplace
+deactivate
 ```
 
 ### 2. Inicialización del servidor
@@ -72,10 +90,17 @@ La inicialización del servidor se puede realizar de forma sencilla a través de
 Para arrancar el motor, basta con ejecutar (en el directorio *backend*):
 
 ```bash
-sudo python3 -m src.main
+sudo venv/bin/python3 -m src.main
 ```
 
 ## Ejecución del *frontend*
+
+En caso de ejecutarse en un equipo distinto al *backend*, el primer paso también sería clonar el repositorio:
+
+```bash
+git clone https://github.com/jomafer97/NsNetworks
+cd NsNetworks
+```
 
 ### 1. Compilación de la interfaz gráfica (Frontend)
 
@@ -101,7 +126,7 @@ cd ..
 
 Una vez realizado el build del frontend, los archivos resultantes pueden ser alojados en cualquier servidor web estándar (como Nginx o Apache) o en servicios de despliegue estático.
 
-Por ejemplo, para un despliegue local rápido o entorno de pruebas, es posible utilizar el servidor HTTP integrado en Python para servir la interfaz gráfica directamente desde la carpeta generada:
+Por ejemplo, para un despliegue local rápido o entorno de pruebas, es posible utilizar el servidor HTTP integrado en Python para servir la interfaz gráfica directamente desde la carpeta generada (en caso de ejecutarse en un entorno Windows con Python, habría que sustituir `python3` por `python`):
 
 ```bash
 cd frontend/dist
