@@ -118,7 +118,7 @@ export const ControlPanel = () => {
             </div>
 
             <div className="mt-auto pt-4 border-t border-mauve-500 text-center">
-                <span className="text-xs text-gray-400 font-mono">SDN Controller v1.0</span>
+                <span className="text-xs text-gray-400 font-mono">NsNetworks v1.0</span>
             </div>
         </div>
     )

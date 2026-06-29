@@ -67,7 +67,7 @@ function App() {
       {/* HEADER LIMPIO */}
       <div className="w-full flex justify-between items-center mb-6 px-6 pt-6 shrink-0">
         <h2 className="text-3xl font-bold text-amber-50">
-          Controlador SDN
+          NsNetworks
         </h2>
       </div>
 
